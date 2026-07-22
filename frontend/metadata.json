@@ -1,0 +1,6 @@
+{
+  "name": "Foshol",
+  "description": "An AI-Powered Smart Agriculture Platform for Bangladesh",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

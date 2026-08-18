@@ -53,7 +53,7 @@ export default function FosholApp() {
       <div className="w-full bg-stone-50 dark:bg-stone-900 overflow-hidden flex flex-col min-h-screen relative transition-colors duration-300">
 
         {/* App Header */}
-        <header className="px-5 py-4 bg-emerald-700 dark:bg-emerald-900 text-white flex justify-between items-center z-20 sticky top-0 shadow-md">
+        <header className="px-5 py-4 bg-emerald-700 dark:bg-emerald-900 text-white flex justify-between items-center z-50 fixed top-0 left-0 right-0 shadow-md">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
               <Leaf className="w-6 h-6 text-white" />
@@ -122,7 +122,7 @@ export default function FosholApp() {
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="absolute top-20 left-4 right-4 z-40 bg-emerald-100 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-2xl flex items-center justify-between shadow-sm"
+              className="fixed top-20 left-4 right-4 z-40 bg-emerald-100 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-2xl flex items-center justify-between shadow-sm"
             >
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-5 h-5 text-emerald-600" />
@@ -134,7 +134,7 @@ export default function FosholApp() {
         </AnimatePresence>
 
         {/* Scrollable Main Area */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden relative scroll-smooth bg-stone-50 dark:bg-stone-900 pb-28">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden relative scroll-smooth bg-stone-50 dark:bg-stone-900 pt-[76px] pb-28">
           <AnimatePresence mode="wait" initial={false}>
             {activeView === 'dashboard' && <DashboardView key="dashboard" tasks={tasks} toggleTask={toggleTask} onViewCropProgress={() => setActiveView('crop_progress')} />}
             {activeView === 'ai' && <AIToolsView key="ai" />}
@@ -148,7 +148,7 @@ export default function FosholApp() {
         </main>
 
         {/* FAB Menu */}
-        <div className="absolute bottom-24 right-6 z-40 flex flex-col items-end gap-3">
+        <div className="fixed bottom-24 right-6 z-40 flex flex-col items-end gap-3">
           <AnimatePresence>
             {showFabMenu && (
               <motion.div
@@ -174,7 +174,7 @@ export default function FosholApp() {
 
         {/* Bottom Navigation Bar */}
         {(activeView === 'dashboard' || activeView === 'ai' || activeView === 'calendar' || activeView === 'profile') && (
-          <nav className="absolute bottom-0 left-0 right-0 bg-white dark:bg-stone-900 border-t border-stone-100 dark:border-stone-800 flex justify-around items-end pb-6 pt-3 px-2 shadow-[0_-10px_40px_rgba(0,0,0,0.06)] z-20 rounded-t-3xl transition-colors duration-300">
+          <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-stone-900 border-t border-stone-100 dark:border-stone-800 flex justify-around items-end pb-6 pt-3 px-2 shadow-[0_-10px_40px_rgba(0,0,0,0.06)] z-50 rounded-t-3xl transition-colors duration-300">
             <NavItem icon={Home} label="Home" isActive={activeView === 'dashboard'} onClick={() => setActiveView('dashboard')} />
             <NavItem icon={ScanLine} label="AI Tools" isActive={activeView === 'ai'} onClick={() => setActiveView('ai')} />
             <NavItem icon={Calendar} label="Tasks" isActive={activeView === 'calendar'} onClick={() => setActiveView('calendar')} />
@@ -191,6 +191,57 @@ export default function FosholApp() {
 // ==========================================
 
 function DashboardView({ tasks, toggleTask, onViewCropProgress }: { tasks: any[], toggleTask: (id: number) => void, onViewCropProgress: () => void }) {
+  const [weatherData, setWeatherData] = useState<{ temp: number, condition: string, location: string, loading: boolean, error: string }>({
+    temp: 32,
+    condition: 'Partly Cloudy',
+    location: 'Rajshahi, BD',
+    loading: false,
+    error: ''
+  });
+
+  useEffect(() => {
+    if (navigator.geolocation) {
+      setWeatherData(prev => ({ ...prev, loading: true }));
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const lat = position.coords.latitude;
+          const lon = position.coords.longitude;
+          const apiKey = process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY;
+          
+          if (!apiKey) {
+            setWeatherData(prev => ({ ...prev, loading: false, error: 'API Key missing' }));
+            return;
+          }
+
+          try {
+            const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric`);
+            if (!res.ok) throw new Error('Weather fetch failed');
+            const data = await res.json();
+            
+            // Format condition to be more readable (e.g., 'scattered clouds' -> 'Scattered Clouds')
+            const condition = data.weather[0].description
+              .split(' ')
+              .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+              .join(' ');
+            
+            setWeatherData({
+              temp: Math.round(data.main.temp),
+              condition: condition,
+              location: `${data.name}, BD`,
+              loading: false,
+              error: ''
+            });
+          } catch (err) {
+            setWeatherData(prev => ({ ...prev, loading: false, error: 'Failed to fetch weather' }));
+          }
+        },
+        (error) => {
+          setWeatherData(prev => ({ ...prev, loading: false, error: 'Location permission denied' }));
+        }
+      );
+    }
+  }, []);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
@@ -203,10 +254,14 @@ function DashboardView({ tasks, toggleTask, onViewCropProgress }: { tasks: any[]
           <div>
             <div className="flex items-center gap-1.5 text-cyan-100 text-sm font-medium mb-1">
               <MapPin className="w-3.5 h-3.5" />
-              Rajshahi, BD
+              {weatherData.location}
             </div>
-            <h2 className="text-4xl font-bold mb-1 tracking-tight">32°C</h2>
-            <p className="text-cyan-100 font-medium">Partly Cloudy</p>
+            <h2 className="text-4xl font-bold mb-1 tracking-tight">
+              {weatherData.loading ? <span className="animate-pulse text-3xl">Loading...</span> : `${weatherData.temp}°C`}
+            </h2>
+            <p className="text-cyan-100 font-medium text-sm">
+              {weatherData.error ? weatherData.error : weatherData.condition}
+            </p>
           </div>
           <Sun className="w-12 h-12 text-yellow-300 drop-shadow-md" />
         </div>

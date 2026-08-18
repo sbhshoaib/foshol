@@ -191,17 +191,18 @@ export default function FosholApp() {
 // ==========================================
 
 function DashboardView({ tasks, toggleTask, onViewCropProgress }: { tasks: any[], toggleTask: (id: number) => void, onViewCropProgress: () => void }) {
-  const [weatherData, setWeatherData] = useState<{ temp: number, condition: string, location: string, loading: boolean, error: string }>({
-    temp: 32,
-    condition: 'Partly Cloudy',
-    location: 'Rajshahi, BD',
-    loading: false,
+  const [weatherData, setWeatherData] = useState<{ temp: number | null, condition: string, location: string, rainChance: number | null, loading: boolean, error: string }>({
+    temp: null,
+    condition: '',
+    location: '',
+    rainChance: null,
+    loading: true,
     error: ''
   });
 
   useEffect(() => {
     if (navigator.geolocation) {
-      setWeatherData(prev => ({ ...prev, loading: true }));
+      // Keep loading as true when geolocation starts
       navigator.geolocation.getCurrentPosition(
         async (position) => {
           const lat = position.coords.latitude;
@@ -214,20 +215,48 @@ function DashboardView({ tasks, toggleTask, onViewCropProgress }: { tasks: any[]
           }
 
           try {
-            const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric`);
-            if (!res.ok) throw new Error('Weather fetch failed');
-            const data = await res.json();
+            // Fetch reverse geocoding for a more accurate location name (e.g. Zilla/Upazilla)
+            const geoRes = await fetch(`https://api.openweathermap.org/geo/1.0/reverse?lat=${lat}&lon=${lon}&limit=1&appid=${apiKey}`);
+            let locationName = '';
+            if (geoRes.ok) {
+              const geoData = await geoRes.json();
+              if (geoData && geoData.length > 0) {
+                locationName = geoData[0].name;
+              }
+            }
+
+            // Fetch current weather and the next 3-hour forecast (for rain probability)
+            const [weatherRes, forecastRes] = await Promise.all([
+              fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric`),
+              fetch(`https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric&cnt=1`)
+            ]);
+
+            if (!weatherRes.ok) throw new Error('Weather fetch failed');
+            const data = await weatherRes.json();
             
-            // Format condition to be more readable (e.g., 'scattered clouds' -> 'Scattered Clouds')
+            let rainChance = 0;
+            if (forecastRes.ok) {
+              const forecastData = await forecastRes.json();
+              if (forecastData.list && forecastData.list.length > 0) {
+                // 'pop' is probability of precipitation (0 to 1)
+                rainChance = Math.round(forecastData.list[0].pop * 100);
+              }
+            }
+
+            // Format condition to be more readable
             const condition = data.weather[0].description
               .split(' ')
               .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
               .join(' ');
             
+            // Fallback to data.name if reverse geocoding didn't yield a name
+            if (!locationName) locationName = data.name;
+
             setWeatherData({
               temp: Math.round(data.main.temp),
               condition: condition,
-              location: `${data.name}, BD`,
+              location: `${locationName}, BD`,
+              rainChance: rainChance,
               loading: false,
               error: ''
             });
@@ -239,6 +268,8 @@ function DashboardView({ tasks, toggleTask, onViewCropProgress }: { tasks: any[]
           setWeatherData(prev => ({ ...prev, loading: false, error: 'Location permission denied' }));
         }
       );
+    } else {
+      setWeatherData(prev => ({ ...prev, loading: false, error: 'Geolocation not supported' }));
     }
   }, []);
 
@@ -248,30 +279,50 @@ function DashboardView({ tasks, toggleTask, onViewCropProgress }: { tasks: any[]
       className="p-5 md:p-6 flex flex-col gap-6"
     >
       {/* Weather Widget */}
-      <section className="bg-gradient-to-br from-cyan-600 to-blue-700 rounded-[2rem] p-5 text-white shadow-lg relative overflow-hidden">
+      <section className="bg-gradient-to-br from-cyan-600 to-blue-700 rounded-[2rem] p-5 text-white shadow-lg relative overflow-hidden min-h-[160px]">
         <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-10 translate-x-10 blur-2xl"></div>
-        <div className="flex justify-between items-start relative z-10">
-          <div>
-            <div className="flex items-center gap-1.5 text-cyan-100 text-sm font-medium mb-1">
-              <MapPin className="w-3.5 h-3.5" />
-              {weatherData.location}
+        
+        {weatherData.loading ? (
+          <div className="relative z-10 animate-pulse flex flex-col justify-between h-full space-y-6">
+            <div className="flex justify-between items-start">
+              <div className="space-y-3">
+                <div className="h-4 w-28 bg-cyan-100/30 rounded-md"></div>
+                <div className="h-10 w-24 bg-white/30 rounded-lg"></div>
+                <div className="h-4 w-32 bg-cyan-100/30 rounded-md"></div>
+              </div>
+              <div className="h-12 w-12 bg-yellow-300/30 rounded-full"></div>
             </div>
-            <h2 className="text-4xl font-bold mb-1 tracking-tight">
-              {weatherData.loading ? <span className="animate-pulse text-3xl">Loading...</span> : `${weatherData.temp}°C`}
-            </h2>
-            <p className="text-cyan-100 font-medium text-sm">
-              {weatherData.error ? weatherData.error : weatherData.condition}
-            </p>
+            <div className="bg-white/10 rounded-2xl p-3 flex justify-between items-center border border-white/10">
+               <div className="h-4 w-32 bg-cyan-100/30 rounded-md"></div>
+               <div className="h-5 w-16 bg-black/10 rounded-lg"></div>
+            </div>
           </div>
-          <Sun className="w-12 h-12 text-yellow-300 drop-shadow-md" />
-        </div>
-        <div className="mt-6 bg-white/20 backdrop-blur-md rounded-2xl p-3 flex justify-between items-center border border-white/10">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <CloudRain className="w-4 h-4 text-cyan-100" />
-            <span>15% Rain Chance</span>
-          </div>
-          <span className="text-xs bg-black/20 px-2.5 py-1 rounded-lg font-semibold uppercase tracking-wider">Today</span>
-        </div>
+        ) : (
+          <>
+            <div className="flex justify-between items-start relative z-10">
+              <div>
+                <div className="flex items-center gap-1.5 text-cyan-100 text-sm font-medium mb-1">
+                  <MapPin className="w-3.5 h-3.5" />
+                  {weatherData.location}
+                </div>
+                <h2 className="text-4xl font-bold mb-1 tracking-tight">
+                  {weatherData.temp !== null ? `${weatherData.temp}°C` : '--°C'}
+                </h2>
+                <p className="text-cyan-100 font-medium text-sm">
+                  {weatherData.error ? weatherData.error : weatherData.condition}
+                </p>
+              </div>
+              <Sun className="w-12 h-12 text-yellow-300 drop-shadow-md" />
+            </div>
+            <div className="mt-6 bg-white/20 backdrop-blur-md rounded-2xl p-3 flex justify-between items-center border border-white/10 relative z-10">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <CloudRain className="w-4 h-4 text-cyan-100" />
+                <span>{weatherData.rainChance !== null ? weatherData.rainChance : '--'}% Rain Chance</span>
+              </div>
+              <span className="text-xs bg-black/20 px-2.5 py-1 rounded-lg font-semibold uppercase tracking-wider">Today</span>
+            </div>
+          </>
+        )}
       </section>
 
       {/* Crop Progress */}

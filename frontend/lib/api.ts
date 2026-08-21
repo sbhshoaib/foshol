@@ -6,7 +6,7 @@ interface FetchOptions extends RequestInit {
 
 export async function fetchApi(endpoint: string, options: FetchOptions = {}) {
   const { requireAuth = false, headers, ...restOptions } = options;
-  
+
   const mergedHeaders: HeadersInit = {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
@@ -23,7 +23,7 @@ export async function fetchApi(endpoint: string, options: FetchOptions = {}) {
   }
 
   const url = `${API_URL}${endpoint}`;
-  
+
   const response = await fetch(url, {
     headers: mergedHeaders,
     ...restOptions,

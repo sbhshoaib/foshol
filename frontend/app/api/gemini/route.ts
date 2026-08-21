@@ -6,9 +6,13 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const responseSchema: Schema = {
   type: Type.OBJECT,
   properties: {
+    error: {
+      type: Type.STRING,
+      description: "If the user provided an invalid or unrecognized crop name, provide a brief error message here (e.g., 'Please enter a valid crop.')."
+    },
     colorShade: {
       type: Type.STRING,
-      description: "A Tailwind CSS background gradient suitable for this crop (e.g., 'from-amber-600 to-amber-800').",
+      description: "A single base color name suitable for this crop's light background theme (e.g., 'emerald', 'teal', 'amber', 'orange', 'yellow', 'cyan', 'indigo', 'violet').",
     },
     phases: {
       type: Type.ARRAY,
@@ -37,7 +41,6 @@ const responseSchema: Schema = {
       },
     },
   },
-  required: ["colorShade", "phases", "tasks"],
 };
 
 export async function POST(req: NextRequest) {
@@ -56,11 +59,14 @@ export async function POST(req: NextRequest) {
 
     const prompt = `
       You are an expert agricultural AI. I am starting to grow ${cropType}.
+      First, verify if "${cropType}" is a valid crop or agricultural plant. If it is NOT a valid crop, return an error field with the message "Please enter a valid crop." and return empty arrays for phases/tasks.
+      If it IS a valid crop:
       The crop cultivation started on ${startDate}.
       ${landAreaContext}
       Please generate the sequential growth phases for this crop, the typical duration (days_count) for each phase, and some suggested key tasks tied to these phases.
+      Keep the phase names extremely short and concise, ideally a single word (e.g. "Germination", "Vegetative", "Flowering", "Harvest"). Do not use long phrases like "Germination & Establishment".
       If land area is provided, scale the tasks appropriately (e.g., mention the estimated amount of seeds, fertilizers, or manpower needed for the given acres in the task descriptions).
-      Provide a suitable UI color gradient shade in Tailwind classes for this crop (e.g., "from-green-500 to-green-700").
+      Provide a suitable professional base color name for a light UI theme for this crop (e.g., "emerald", "amber", "teal", "orange", "yellow").
     `;
 
     const response = await ai.models.generateContent({

@@ -20,4 +20,5 @@ Route::middleware('auth:sanctum')->group(function () {
     // Crops
     Route::get('/crops', [CropController::class, 'index']);
     Route::post('/crops', [CropController::class, 'store']);
+    Route::delete('/crops/{id}', [CropController::class, 'destroy']);
 });

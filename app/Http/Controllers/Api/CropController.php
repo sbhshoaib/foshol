@@ -90,4 +90,27 @@ class CropController extends Controller
             return response()->json(['error' => 'Failed to create crop', 'message' => $e->getMessage()], 500);
         }
     }
+
+    public function destroy($id)
+    {
+        $userId = Auth::id() ?: 1;
+        $crop = Crop::where('id', $id)->where('user_id', $userId)->first();
+
+        if (!$crop) {
+            return response()->json(['error' => 'Crop not found or unauthorized'], 404);
+        }
+
+        DB::beginTransaction();
+        try {
+            Task::where('crop_id', $crop->id)->delete();
+            CropPhase::where('crop_id', $crop->id)->delete();
+            $crop->delete();
+            
+            DB::commit();
+            return response()->json(['message' => 'Crop and associated tasks deleted successfully']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['error' => 'Failed to delete crop'], 500);
+        }
+    }
 }

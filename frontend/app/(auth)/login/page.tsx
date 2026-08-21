@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { fetchApi } from '@/lib/api';
@@ -9,6 +9,13 @@ import { Loader2, ArrowRight } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
+
+  useEffect(() => {
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      router.push('/');
+    }
+  }, [router]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [formData, setFormData] = useState({
@@ -43,7 +50,7 @@ export default function LoginPage() {
 
   return (
     <div>
-      <h2 className="text-2xl font-semibold text-white mb-6">Welcome Back</h2>
+      <h2 className="text-3xl font-semibold text-white mb-8 tracking-tight">Welcome Back</h2>
       
       {error && (
         <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
@@ -53,11 +60,11 @@ export default function LoginPage() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1.5">Email Address</label>
+          <label className="block text-sm font-medium text-slate-300 mb-2 pl-1">Email Address</label>
           <input
             type="email"
             required
-            className="w-full bg-slate-800/50 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200"
+            className="w-full bg-slate-800/60 rounded-2xl px-5 py-4 text-white placeholder-slate-400 focus:outline-none focus:bg-slate-700/80 transition-colors duration-200"
             placeholder="farmer@example.com"
             value={formData.email}
             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -65,16 +72,16 @@ export default function LoginPage() {
         </div>
         
         <div>
-          <div className="flex justify-between items-center mb-1.5">
+          <div className="flex justify-between items-center mb-2 pl-1 pr-1">
             <label className="block text-sm font-medium text-slate-300">Password</label>
-            <Link href="/forgot-password" className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors">
+            <Link href="/forgot-password" className="text-sm font-medium text-emerald-400 hover:text-emerald-300 transition-colors">
               Forgot password?
             </Link>
           </div>
           <input
             type="password"
             required
-            className="w-full bg-slate-800/50 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200"
+            className="w-full bg-slate-800/60 rounded-2xl px-5 py-4 text-white placeholder-slate-400 focus:outline-none focus:bg-slate-700/80 transition-colors duration-200"
             placeholder="••••••••"
             value={formData.password}
             onChange={(e) => setFormData({ ...formData, password: e.target.value })}
@@ -84,7 +91,7 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-xl px-4 py-3 mt-4 transition-all duration-200 flex items-center justify-center group disabled:opacity-70 disabled:cursor-not-allowed shadow-lg shadow-emerald-500/20"
+          className="w-full bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white font-semibold rounded-2xl px-5 py-4 mt-8 transition-colors duration-200 flex items-center justify-center group disabled:opacity-70 disabled:cursor-not-allowed"
         >
           {loading ? (
             <Loader2 className="w-5 h-5 animate-spin" />
@@ -97,9 +104,9 @@ export default function LoginPage() {
         </button>
       </form>
 
-      <div className="mt-8 text-center text-sm text-slate-400">
+      <div className="mt-10 text-center text-slate-400">
         New to Foshol?{' '}
-        <Link href="/register" className="text-emerald-400 hover:text-emerald-300 font-medium transition-colors">
+        <Link href="/register" className="text-emerald-400 hover:text-emerald-300 font-semibold transition-colors">
           Create an account
         </Link>
       </div>

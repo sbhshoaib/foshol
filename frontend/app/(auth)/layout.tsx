@@ -14,17 +14,15 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
-        className="w-full max-w-md z-10 relative"
+        className="w-full max-w-md z-10 relative px-6 sm:px-8"
       >
-        <div className="bg-slate-900/50 backdrop-blur-xl border border-white/10 shadow-2xl rounded-3xl p-8">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
-              Foshol
-            </h1>
-            <p className="text-slate-400 mt-2 text-sm">Empowering Farmers, Everywhere.</p>
-          </div>
-          {children}
+        <div className="mb-12">
+          <h1 className="text-4xl font-bold text-white tracking-tight">
+            Foshol
+          </h1>
+          <p className="text-slate-400 mt-2 text-base">Empowering Farmers, Everywhere.</p>
         </div>
+        {children}
       </motion.div>
     </div>
   );

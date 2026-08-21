@@ -46,16 +46,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'GEMINI_API_KEY is not configured.' }, { status: 500 });
     }
 
-    const { cropType, startDate } = await req.json();
+    const { cropType, startDate, landArea } = await req.json();
 
     if (!cropType || !startDate) {
       return NextResponse.json({ error: 'cropType and startDate are required.' }, { status: 400 });
     }
 
+    const landAreaContext = landArea ? `The total area of land for cultivation is ${landArea} acres.` : '';
+
     const prompt = `
       You are an expert agricultural AI. I am starting to grow ${cropType}.
       The crop cultivation started on ${startDate}.
+      ${landAreaContext}
       Please generate the sequential growth phases for this crop, the typical duration (days_count) for each phase, and some suggested key tasks tied to these phases.
+      If land area is provided, scale the tasks appropriately (e.g., mention the estimated amount of seeds, fertilizers, or manpower needed for the given acres in the task descriptions).
       Provide a suitable UI color gradient shade in Tailwind classes for this crop (e.g., "from-green-500 to-green-700").
     `;
 

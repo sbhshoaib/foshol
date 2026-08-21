@@ -1,5 +1,26 @@
 'use client';
 
+// TAILWIND SAFELIST FOR DYNAMIC AI CROP COLORS
+// from-red-500 to-red-700 from-red-600 to-red-800
+// from-orange-500 to-orange-700 from-orange-600 to-orange-800
+// from-amber-500 to-amber-700 from-amber-600 to-amber-800
+// from-yellow-500 to-yellow-700 from-yellow-600 to-yellow-800
+// from-lime-500 to-lime-700 from-lime-600 to-lime-800
+// from-green-500 to-green-700 from-green-600 to-green-800
+// from-emerald-500 to-emerald-700 from-emerald-600 to-emerald-800
+// from-teal-500 to-teal-700 from-teal-600 to-teal-800
+// from-cyan-500 to-cyan-700 from-cyan-600 to-cyan-800
+// from-sky-500 to-sky-700 from-sky-600 to-sky-800
+// from-blue-500 to-blue-700 from-blue-600 to-blue-800
+// from-indigo-500 to-indigo-700 from-indigo-600 to-indigo-800
+// from-violet-500 to-violet-700 from-violet-600 to-violet-800
+// from-purple-500 to-purple-700 from-purple-600 to-purple-800
+// from-fuchsia-500 to-fuchsia-700 from-fuchsia-600 to-fuchsia-800
+// from-pink-500 to-pink-700 from-pink-600 to-pink-800
+// from-rose-500 to-rose-700 from-rose-600 to-rose-800
+// from-stone-500 to-stone-700 from-stone-600 to-stone-800
+// from-slate-500 to-slate-700 from-slate-600 to-slate-800
+
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -409,7 +430,9 @@ function DashboardView({ crops, tasks, toggleTask, onViewCropProgress }: { crops
       <section>
         <div className="flex justify-between items-end mb-4 px-1">
           <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100">Crop Progress</h3>
-          <button onClick={onViewCropProgress} className="text-sm text-emerald-600 dark:text-emerald-400 font-bold hover:text-emerald-700 transition-colors">View All</button>
+          {crops && crops.length > 0 && (
+            <button onClick={onViewCropProgress} className="text-sm text-emerald-600 dark:text-emerald-400 font-bold hover:text-emerald-700 transition-colors">View All</button>
+          )}
         </div>
         
         {!crops || crops.length === 0 ? (
@@ -658,6 +681,7 @@ function AddCropView({ onBack, onSave }: { onBack: () => void, onSave: () => voi
   const [cropType, setCropType] = useState('Rice');
   const [fieldName, setFieldName] = useState('');
   const [startDate, setStartDate] = useState('');
+  const [landArea, setLandArea] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [reviewData, setReviewData] = useState<any>(null);
   const [generationTimeMs, setGenerationTimeMs] = useState(0);
@@ -675,12 +699,12 @@ function AddCropView({ onBack, onSave }: { onBack: () => void, onSave: () => voi
       const res = await fetch('/api/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cropType, startDate })
+        body: JSON.stringify({ cropType, startDate, landArea })
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       
-      data.phases = data.phases.map((p: any) => ({ ...p, checked: true }));
+      data.phases = data.phases.map((p: any) => ({ ...p, checked: true, original_days_count: p.days_count }));
       setReviewData(data);
       setGenerationTimeMs(Date.now() - startTime);
     } catch (err: any) {
@@ -693,21 +717,35 @@ function AddCropView({ onBack, onSave }: { onBack: () => void, onSave: () => voi
   const togglePhase = (index: number) => {
     if (!reviewData) return;
     const newPhases = [...reviewData.phases];
-    const toggledPhase = newPhases[index];
-    toggledPhase.checked = !toggledPhase.checked;
+    newPhases[index].checked = !newPhases[index].checked;
     
-    if (!toggledPhase.checked) {
-       const half = Math.floor(toggledPhase.days_count / 2);
-       const remainder = toggledPhase.days_count - half;
-       
-       let prevIdx = index - 1;
-       while (prevIdx >= 0 && !newPhases[prevIdx].checked) prevIdx--;
-       let nextIdx = index + 1;
-       while (nextIdx < newPhases.length && !newPhases[nextIdx].checked) nextIdx++;
-       
-       if (prevIdx >= 0) newPhases[prevIdx].days_count += half;
-       if (nextIdx < newPhases.length) newPhases[nextIdx].days_count += remainder;
+    // Reset all phases to their original days count
+    newPhases.forEach(p => p.days_count = p.original_days_count);
+    
+    // Redistribute days for unchecked phases
+    for (let i = 0; i < newPhases.length; i++) {
+        if (!newPhases[i].checked) {
+            const originalDays = newPhases[i].original_days_count;
+            
+            let prevIdx = i - 1;
+            while (prevIdx >= 0 && !newPhases[prevIdx].checked) prevIdx--;
+            
+            let nextIdx = i + 1;
+            while (nextIdx < newPhases.length && !newPhases[nextIdx].checked) nextIdx++;
+            
+            if (prevIdx >= 0 && nextIdx < newPhases.length) {
+                const half = Math.floor(originalDays / 2);
+                const remainder = originalDays - half;
+                newPhases[prevIdx].days_count += half;
+                newPhases[nextIdx].days_count += remainder;
+            } else if (prevIdx >= 0) {
+                newPhases[prevIdx].days_count += originalDays;
+            } else if (nextIdx < newPhases.length) {
+                newPhases[nextIdx].days_count += originalDays;
+            }
+        }
     }
+    
     setReviewData({ ...reviewData, phases: newPhases });
   };
 
@@ -817,8 +855,26 @@ function AddCropView({ onBack, onSave }: { onBack: () => void, onSave: () => voi
             <input type="text" value={fieldName} onChange={e => setFieldName(e.target.value)} placeholder="e.g. North Field" className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
           </div>
           <div>
+            <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Land Area in Acres (Optional)</label>
+            <input type="number" step="0.1" min="0" value={landArea} onChange={e => setLandArea(e.target.value)} placeholder="e.g. 2.5" className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
+          </div>
+          <div>
             <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Starting Date</label>
-            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
+            <div className="relative flex items-center">
+              {/* Background Layer */}
+              <div className="absolute inset-0 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl pointer-events-none"></div>
+              
+              {/* Custom Icon */}
+              <Calendar className="w-5 h-5 absolute right-4 text-stone-400 pointer-events-none z-20" />
+              
+              {/* Native Input Overlay */}
+              <input 
+                type="date" 
+                value={startDate} 
+                onChange={e => setStartDate(e.target.value)} 
+                className="w-full h-full min-h-[50px] px-4 py-3.5 bg-transparent border-none rounded-2xl text-stone-900 dark:text-stone-100 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50 appearance-none relative z-10 cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer" 
+              />
+            </div>
           </div>
         </div>
       ) : (

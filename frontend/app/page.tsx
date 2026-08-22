@@ -1423,6 +1423,7 @@ function CalendarView({ tasks, toggleTask }: { tasks: any[], toggleTask: (id: nu
                   const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
                   const tasksForSelectedDate = tasks.filter(t => t.time === dateStr);
                   const isToday = new Date().toISOString().split('T')[0] === dateStr;
+                  const upcomingTasks = tasks.filter(t => !t.done && t.time > dateStr);
 
                   return (
                     <>
@@ -1443,6 +1444,17 @@ function CalendarView({ tasks, toggleTask }: { tasks: any[], toggleTask: (id: nu
                               <FileText className="w-5 h-5 text-stone-400" />
                            </div>
                            <p className="text-stone-500 dark:text-stone-400 font-bold text-sm">No tasks scheduled for this date.</p>
+                        </div>
+                      )}
+
+                      {upcomingTasks.length > 0 && (
+                        <div className="pt-2">
+                          <div className="flex justify-between items-end mb-4 px-1">
+                            <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100 uppercase tracking-wider">Upcoming Tasks</h3>
+                          </div>
+                          <div className="flex flex-col gap-3">
+                            {upcomingTasks.map(task => <TaskCard key={task.id} task={task} onToggle={() => toggleTask(task.id)} />)}
+                          </div>
                         </div>
                       )}
                     </>

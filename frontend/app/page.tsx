@@ -1246,6 +1246,7 @@ function CalendarView({ tasks, toggleTask }: { tasks: any[], toggleTask: (id: nu
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
   const [showDayPopup, setShowDayPopup] = useState(false);
+  const [slideDir, setSlideDir] = useState(1);
 
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
@@ -1360,29 +1361,44 @@ function CalendarView({ tasks, toggleTask }: { tasks: any[], toggleTask: (id: nu
         </div>
       ) : (
         <>
-          <div className="flex justify-between mb-8">
-            {generateWeekDays().map((d, i) => {
-               const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
-               const dateNum = d.getDate();
-               const isSelected = selectedDate.getDate() === d.getDate() && selectedDate.getMonth() === d.getMonth() && selectedDate.getFullYear() === d.getFullYear();
-               const isToday = new Date().getDate() === d.getDate() && new Date().getMonth() === d.getMonth() && new Date().getFullYear() === d.getFullYear();
-               const hasTask = hasTaskOnDate(dateNum, d.getMonth(), d.getFullYear());
-
-               return (
-                 <div key={i} onClick={() => {
-                     setSelectedDate(d);
-                     setCurrentMonth(d.getMonth());
-                     setCurrentYear(d.getFullYear());
-                   }} 
-                   className={`flex flex-col items-center p-3 rounded-2xl w-[18%] cursor-pointer transition-colors ${isSelected ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30' : 'bg-white dark:bg-stone-800 text-stone-500 dark:text-stone-400 border border-stone-100 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-700'}`}>
-                   <span className={`text-xs font-bold uppercase mb-1 ${isToday && !isSelected ? 'text-emerald-500' : ''}`}>{dayName}</span>
-                   <span className={`text-lg font-bold ${isSelected ? 'text-white' : 'text-stone-900 dark:text-stone-100'}`}>{dateNum}</span>
-                   {hasTask && (
-                     <span className={`w-1 h-1 rounded-full mt-1 ${isSelected ? 'bg-white' : 'bg-emerald-500'}`}></span>
-                   )}
-                 </div>
-               );
-            })}
+          <div className="mb-8 relative" style={{ height: '96px' }}>
+            <AnimatePresence mode="popLayout" initial={false} custom={slideDir}>
+              <motion.div
+                key={selectedDate.toISOString()}
+                custom={slideDir}
+                initial={(dir: number) => ({ opacity: 0, x: dir * 50 })}
+                animate={{ opacity: 1, x: 0 }}
+                exit={(dir: number) => ({ opacity: 0, x: -dir * 50 })}
+                transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+                className="flex justify-between absolute inset-0 w-full"
+              >
+                {generateWeekDays().map((d, i) => {
+                   const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+                   const dateNum = d.getDate();
+                   const isSelected = selectedDate.getDate() === d.getDate() && selectedDate.getMonth() === d.getMonth() && selectedDate.getFullYear() === d.getFullYear();
+                   const isToday = new Date().getDate() === d.getDate() && new Date().getMonth() === d.getMonth() && new Date().getFullYear() === d.getFullYear();
+                   const hasTask = hasTaskOnDate(dateNum, d.getMonth(), d.getFullYear());
+    
+                   return (
+                     <div key={i} onClick={() => {
+                         if (d.getTime() !== selectedDate.getTime()) {
+                             setSlideDir(d > selectedDate ? 1 : -1);
+                             setSelectedDate(d);
+                             setCurrentMonth(d.getMonth());
+                             setCurrentYear(d.getFullYear());
+                         }
+                       }} 
+                       className={`flex flex-col items-center p-3 rounded-2xl w-[18%] h-full justify-center cursor-pointer transition-colors ${isSelected ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30' : 'bg-white dark:bg-stone-800 text-stone-500 dark:text-stone-400 border border-stone-100 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-700'}`}>
+                       <span className={`text-xs font-bold uppercase mb-1 ${isToday && !isSelected ? 'text-emerald-500' : ''}`}>{dayName}</span>
+                       <span className={`text-lg font-bold ${isSelected ? 'text-white' : 'text-stone-900 dark:text-stone-100'}`}>{dateNum}</span>
+                       {hasTask && (
+                         <span className={`w-1 h-1 rounded-full mt-1 ${isSelected ? 'bg-white' : 'bg-emerald-500'}`}></span>
+                       )}
+                     </div>
+                   );
+                })}
+              </motion.div>
+            </AnimatePresence>
           </div>
 
           <div className="space-y-6">

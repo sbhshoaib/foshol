@@ -1402,56 +1402,48 @@ function CalendarView({ tasks, toggleTask }: { tasks: any[], toggleTask: (id: nu
             </AnimatePresence>
           </div>
 
-          <div className="space-y-6">
-            {(() => {
-              const todayStr = new Date().toISOString().split('T')[0];
-              const pastTasks = tasks.filter(t => t.done);
-              const todaysTasks = tasks.filter(t => !t.done && t.time <= todayStr);
-              const upcomingTasks = tasks.filter(t => !t.done && t.time > todayStr);
+          <div className="relative overflow-hidden min-h-[300px]">
+            <AnimatePresence mode="wait" initial={false} custom={slideDir}>
+              <motion.div
+                key={selectedDate.toISOString()}
+                custom={slideDir}
+                initial={(dir: number) => ({ opacity: 0, x: dir * 50 })}
+                animate={{ opacity: 1, x: 0 }}
+                exit={(dir: number) => ({ opacity: 0, x: -dir * 50 })}
+                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                className="space-y-6"
+              >
+                {(() => {
+                  const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
+                  const tasksForSelectedDate = tasks.filter(t => t.time === dateStr);
+                  const isToday = new Date().toISOString().split('T')[0] === dateStr;
 
-              return (
-                <>
-                  {todaysTasks.length > 0 && (
-                    <div>
-                      <div className="flex justify-between items-end mb-4 px-1">
-                        <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100 uppercase tracking-wider">Today&apos;s Tasks</h3>
-                      </div>
-                      <div className="flex flex-col gap-3">
-                        {todaysTasks.map(task => <TaskCard key={task.id} task={task} onToggle={() => toggleTask(task.id)} />)}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {upcomingTasks.length > 0 && (
-                    <div>
-                      <div className="flex justify-between items-end mb-4 px-1">
-                        <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100 uppercase tracking-wider">Upcoming Tasks</h3>
-                      </div>
-                      <div className="flex flex-col gap-3">
-                        {upcomingTasks.map(task => <TaskCard key={task.id} task={task} onToggle={() => toggleTask(task.id)} />)}
-                      </div>
-                    </div>
-                  )}
-
-                  {pastTasks.length > 0 && (
-                    <div>
-                      <div className="flex justify-between items-end mb-4 px-1">
-                        <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100 uppercase tracking-wider">Past Tasks</h3>
-                      </div>
-                      <div className="flex flex-col gap-3">
-                        {pastTasks.map(task => <TaskCard key={task.id} task={task} onToggle={() => toggleTask(task.id)} />)}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {tasks.length === 0 && (
-                      <div className="bg-stone-50 dark:bg-stone-800 rounded-[2rem] p-5 text-center text-stone-500 text-sm">
-                          No tasks available.
-                      </div>
-                  )}
-                </>
-              );
-            })()}
+                  return (
+                    <>
+                      {tasksForSelectedDate.length > 0 ? (
+                        <div>
+                          <div className="flex justify-between items-end mb-4 px-1">
+                            <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100 uppercase tracking-wider">
+                              {isToday ? "Today's Tasks" : "Scheduled Tasks"}
+                            </h3>
+                          </div>
+                          <div className="flex flex-col gap-3">
+                            {tasksForSelectedDate.map(task => <TaskCard key={task.id} task={task} onToggle={() => toggleTask(task.id)} />)}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="bg-stone-50 dark:bg-stone-800 rounded-[2rem] p-8 text-center shadow-sm">
+                           <div className="w-12 h-12 bg-white dark:bg-stone-900 rounded-full flex items-center justify-center mx-auto mb-3">
+                              <FileText className="w-5 h-5 text-stone-400" />
+                           </div>
+                           <p className="text-stone-500 dark:text-stone-400 font-bold text-sm">No tasks scheduled for this date.</p>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </motion.div>
+            </AnimatePresence>
           </div>
         </>
       )}

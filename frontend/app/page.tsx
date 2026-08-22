@@ -1634,6 +1634,8 @@ function PricePredictionView({ onBack, crops }: { onBack: () => void, crops: any
   const [unit, setUnit] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [phaseMessage, setPhaseMessage] = useState<string>('');
+  const [reportType, setReportType] = useState<'monthly' | 'yearly'>('monthly');
+  const [news, setNews] = useState<{title: string, source: string}[]>([]);
 
   const uniqueCropNames = Array.from(new Set(crops.map(c => c.type || c.name)));
   if (uniqueCropNames.length === 0) {
@@ -1669,7 +1671,7 @@ function PricePredictionView({ onBack, crops }: { onBack: () => void, crops: any
       if (phaseInMonth) {
         setPhaseMessage(`You will ${phaseInMonth.name} in ${monthNames[month]}`);
       } else {
-        setPhaseMessage(`No specific farming phase found in ${monthNames[month]}`);
+        setPhaseMessage('');
       }
     } else {
       setPhaseMessage('');
@@ -1686,22 +1688,24 @@ function PricePredictionView({ onBack, crops }: { onBack: () => void, crops: any
     setPredictionData(null);
     setSummary('');
     setUnit('');
+    setNews([]);
 
     try {
       const res = await fetch('/api/price-prediction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ crop: selectedCrop, month, year, location: 'Bangladesh' })
+        body: JSON.stringify({ crop: selectedCrop, month, year, location: 'Bangladesh', reportType })
       });
       const data = await res.json();
       if (res.ok) {
         const chartData = data.data.map((d: any) => ({
-          name: d.week,
+          name: d.period || d.week,
           [selectedCrop]: d.price
         }));
         setPredictionData(chartData);
         setSummary(data.summary);
         setUnit(data.unit || '');
+        setNews(data.news || []);
       } else {
         setError(data.error || 'Failed to generate prediction');
       }
@@ -1758,13 +1762,21 @@ function PricePredictionView({ onBack, crops }: { onBack: () => void, crops: any
             ))}
           </div>
 
-          <h3 className="font-bold text-lg mb-4 text-stone-900 dark:text-stone-100">2. Select Target Date</h3>
+          <h3 className="font-bold text-lg mb-4 text-stone-900 dark:text-stone-100">2. Select Report Type</h3>
+          <div className="flex gap-2 mb-6 bg-stone-100 dark:bg-stone-800 p-1.5 rounded-2xl">
+            <button onClick={() => setReportType('monthly')} className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${reportType === 'monthly' ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 shadow-sm' : 'text-stone-500 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-700/50'}`}>Monthly Report</button>
+            <button onClick={() => setReportType('yearly')} className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${reportType === 'yearly' ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 shadow-sm' : 'text-stone-500 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-700/50'}`}>Yearly Report</button>
+          </div>
+
+          <h3 className="font-bold text-lg mb-4 text-stone-900 dark:text-stone-100">3. Select Target Date</h3>
           <div className="flex gap-4 mb-6">
-            <select value={month} onChange={(e) => setMonth(parseInt(e.target.value))} className="appearance-auto flex-1 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-indigo-500 outline-none">
-              {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map((m, i) => (
-                <option key={m} value={i}>{m}</option>
-              ))}
-            </select>
+            {reportType === 'monthly' && (
+              <select value={month} onChange={(e) => setMonth(parseInt(e.target.value))} className="appearance-auto flex-1 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-indigo-500 outline-none">
+                {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map((m, i) => (
+                  <option key={m} value={i}>{m}</option>
+                ))}
+              </select>
+            )}
             <select value={year} onChange={(e) => setYear(parseInt(e.target.value))} className="appearance-auto flex-1 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-indigo-500 outline-none">
               {[2024, 2025, 2026, 2027].map(y => (
                 <option key={y} value={y}>{y}</option>
@@ -1793,7 +1805,9 @@ function PricePredictionView({ onBack, crops }: { onBack: () => void, crops: any
 
         {predictionData && (
           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-stone-900 rounded-[2rem] p-6 shadow-sm border border-stone-100 dark:border-stone-800">
-            <h3 className="font-bold text-xl mb-4 text-stone-900 dark:text-stone-100">Market Projection</h3>
+            <h3 className="font-bold text-xl mb-4 text-stone-900 dark:text-stone-100">
+              Market Projection {unit && <span className="text-sm font-medium text-stone-500 ml-2">(BDT / {unit})</span>}
+            </h3>
             
             <div className="h-72 w-full mb-6">
               <ResponsiveContainer width="100%" height="100%">
@@ -1811,6 +1825,23 @@ function PricePredictionView({ onBack, crops }: { onBack: () => void, crops: any
             <p className="text-sm text-stone-500 dark:text-stone-400 leading-relaxed bg-stone-50 dark:bg-stone-800/50 p-4 rounded-2xl">
               {summary}
             </p>
+            
+            {news && news.length > 0 && (
+              <div className="mt-6">
+                <h4 className="font-bold text-stone-900 dark:text-stone-100 mb-3 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-indigo-500" />
+                  Recent Market News
+                </h4>
+                <div className="space-y-3">
+                  {news.map((item, idx) => (
+                    <div key={idx} className="bg-stone-50 dark:bg-stone-800/80 p-4 rounded-xl border border-stone-100 dark:border-stone-700">
+                      <p className="text-sm font-bold text-stone-800 dark:text-stone-200">{item.title}</p>
+                      <p className="text-[10px] uppercase tracking-wider font-bold text-stone-400 mt-2">{item.source}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
       </div>

@@ -1,0 +1,87 @@
+{
+  "project_info": {
+    "project_number": "617128713135",
+    "firebase_url": "https://shoaib-191c5.firebaseio.com",
+    "project_id": "shoaib-191c5",
+    "storage_bucket": "shoaib-191c5.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:617128713135:android:63e3c79226c1931b41ad5a",
+        "android_client_info": {
+          "package_name": "com.dakpion.sbh"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBEU-6jiHhJUk9VWVoGWy9TQUWJcBZ2ycw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:617128713135:android:c531e3c29fe7c7ed41ad5a",
+        "android_client_info": {
+          "package_name": "com.foshol.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBEU-6jiHhJUk9VWVoGWy9TQUWJcBZ2ycw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:617128713135:android:564e02caac12292141ad5a",
+        "android_client_info": {
+          "package_name": "com.sbh.hometutor"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBEU-6jiHhJUk9VWVoGWy9TQUWJcBZ2ycw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:617128713135:android:e360f05ffc5e442141ad5a",
+        "android_client_info": {
+          "package_name": "sbh.nenobazar.com"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBEU-6jiHhJUk9VWVoGWy9TQUWJcBZ2ycw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -22,6 +22,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { fetchApi } from '../lib/api';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 import { PushNotifications } from '@capacitor/push-notifications';
+import { StatusBar, Style } from '@capacitor/status-bar';
 
 // Custom Tab Types
 type ViewType = 'dashboard' | 'ai' | 'chatbot' | 'fertilizer_ai' | 'calendar' | 'profile' | 'edit_profile' | 'add_crop' | 'add_task' | 'crop_progress' | 'price_prediction';
@@ -124,6 +125,23 @@ export default function FosholApp() {
       const fetchedLands = await fetchApi('/lands', { requireAuth: true });
       setLands(fetchedLands);
       localStorage.setItem('lands_cache', JSON.stringify(fetchedLands));
+
+      const fetchedNotifs = await fetchApi('/notifications', { requireAuth: true });
+      const formattedNotifs = fetchedNotifs.map((n: any) => {
+        // Simple relative time format
+        const diff = Math.floor((new Date().getTime() - new Date(n.created_at).getTime()) / 60000);
+        let timeStr = diff < 60 ? `${diff}m ago` : diff < 1440 ? `${Math.floor(diff / 60)}h ago` : `${Math.floor(diff / 1440)}d ago`;
+        if (diff < 1) timeStr = 'Just now';
+
+        return {
+          id: n.id,
+          title: n.title,
+          desc: n.body,
+          time: timeStr,
+          read: n.seen
+        };
+      });
+      setNotifications(formattedNotifs);
     } catch (err) {
       console.error("Failed to load data", err);
     } finally {
@@ -157,12 +175,20 @@ export default function FosholApp() {
       fetchDashboardData();
       setIsCheckingAuth(false);
     }
+
+    const initStatusBar = async () => {
+      try {
+        await StatusBar.setOverlaysWebView({ overlay: false });
+        await StatusBar.setStyle({ style: Style.Dark });
+        await StatusBar.setBackgroundColor({ color: '#047857' });
+      } catch (err) {
+        console.log('StatusBar API not available', err);
+      }
+    };
+    initStatusBar();
   }, [router]);
 
-  const [notifications, setNotifications] = useState([
-    { id: 1, title: 'Weather Alert', desc: 'Heavy rain expected tomorrow.', time: '10m ago', read: false },
-    { id: 2, title: 'Task Reminder', desc: 'Apply fertilizer in Field A.', time: '1h ago', read: false }
-  ]);
+  const [notifications, setNotifications] = useState<any[]>([]);
 
   const [profileAlert, setProfileAlert] = useState('');
 
@@ -196,7 +222,7 @@ export default function FosholApp() {
         console.error('Push Notifications setup failed', e);
       }
     };
-    
+
     setupPushNotifications();
     setIsDarkModeLoaded(true);
   }, []);
@@ -217,11 +243,15 @@ export default function FosholApp() {
     setTasks(tasks.map(t => t.id === id ? { ...t, done: !t.done } : t));
   };
 
-  const markAllNotificationsRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, read: true })));
-  };
-
   const unreadCount = notifications.filter(n => !n.read).length;
+  const markAllNotificationsRead = async () => {
+    try {
+      await fetchApi('/notifications/mark-read', { method: 'PUT', requireAuth: true });
+      setNotifications(notifications.map(n => ({ ...n, read: true })));
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const handleSignOut = async () => {
     try {
@@ -249,13 +279,13 @@ export default function FosholApp() {
       <div className="w-full bg-stone-50 dark:bg-stone-900 overflow-hidden flex flex-col min-h-screen relative transition-colors duration-300">
 
         {/* App Header */}
-        <header className="px-5 py-4 bg-emerald-700 dark:bg-emerald-900 text-white flex justify-between items-center z-50 shadow-md shrink-0">
+        <header className="sticky top-0 w-full px-4 py-3 bg-emerald-700 dark:bg-emerald-900 text-white flex justify-between items-center z-50 shadow-md shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
               <Leaf className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight leading-none">Foshol</h1>
+              <h1 className="text-lg font-bold tracking-tight leading-none">Foshol</h1>
               <p className="text-[10px] text-emerald-200 font-semibold mt-1 tracking-wider uppercase">Smart Agriculture</p>
             </div>
           </div>
@@ -373,7 +403,7 @@ export default function FosholApp() {
 
         {/* Bottom Navigation Bar */}
         {(activeView === 'dashboard' || activeView === 'ai' || activeView === 'calendar' || activeView === 'profile') && (
-          <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-stone-900 border-t border-stone-100 dark:border-stone-800 flex justify-around items-end pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-3 px-2 shadow-[0_-10px_40px_rgba(0,0,0,0.06)] z-50 rounded-t-3xl transition-colors duration-300">
+          <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-stone-900 border-t border-stone-100 dark:border-stone-800 flex justify-around items-end pb-2 pt-3 px-2 shadow-[0_-10px_40px_rgba(0,0,0,0.06)] z-50 rounded-t-3xl transition-colors duration-300">
             <NavItem icon={Home} label="Home" isActive={activeView === 'dashboard'} onClick={() => setActiveView('dashboard')} />
             <NavItem icon={ScanLine} label="AI Tools" isActive={activeView === 'ai' || (activeView as string) === 'chatbot' || (activeView as string) === 'price_prediction' || (activeView as string) === 'fertilizer_ai'} onClick={() => setActiveView('ai')} />
             <NavItem icon={Calendar} label="Tasks" isActive={activeView === 'calendar'} onClick={() => setActiveView('calendar')} />
@@ -395,12 +425,12 @@ export default function FosholApp() {
                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="relative bg-white dark:bg-stone-900 rounded-[2rem] p-6 max-w-sm w-full shadow-2xl border border-stone-100 dark:border-stone-800"
+                className="relative bg-white dark:bg-stone-900 rounded-[2rem] p-4 max-w-sm w-full shadow-2xl border border-stone-100 dark:border-stone-800"
               >
                 <div className="w-16 h-16 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4 mx-auto text-red-500">
                   <Trash2 className="w-8 h-8" />
                 </div>
-                <h3 className="text-xl font-bold text-center text-stone-900 dark:text-stone-100 mb-2">Delete Crop?</h3>
+                <h3 className="text-lg font-bold text-center text-stone-900 dark:text-stone-100 mb-2">Delete Crop?</h3>
                 <p className="text-stone-500 dark:text-stone-400 text-center text-sm mb-6 leading-relaxed">
                   Are you sure you want to delete this crop? All its associated tasks and schedules will be permanently removed.
                 </p>
@@ -465,100 +495,77 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
 
   useEffect(() => {
-    const fetchWeather = () => {
+    const fetchWeather = async () => {
       if (!navigator.onLine) {
         setWeatherData(prev => ({ ...prev, temp: null, error: 'Internet needed', loading: false }));
         return;
       }
 
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          async (position) => {
-            const lat = position.coords.latitude;
-            const lon = position.coords.longitude;
-            const apiKey = process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY;
-
-            if (!apiKey) {
-              setWeatherData(prev => ({ ...prev, loading: false, error: 'API Key missing' }));
-              return;
-            }
-
-            try {
-              const geoRes = await fetch(`https://api.openweathermap.org/geo/1.0/reverse?lat=${lat}&lon=${lon}&limit=1&appid=${apiKey}`);
-              let locationName = '';
-              if (geoRes.ok) {
-                const geoData = await geoRes.json();
-                if (geoData && geoData.length > 0) {
-                  locationName = geoData[0].name;
-                }
-              }
-
-              const [weatherRes, forecastRes] = await Promise.all([
-                fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric`),
-                fetch(`https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric&cnt=8`)
-              ]);
-
-              if (!weatherRes.ok) throw new Error('Weather fetch failed');
-              const data = await weatherRes.json();
-
-              let rainChance3Hr = 0;
-              let rainChanceToday = 0;
-              if (forecastRes.ok) {
-                const forecastData = await forecastRes.json();
-                if (forecastData.list && forecastData.list.length > 0) {
-                  rainChance3Hr = Math.round(forecastData.list[0].pop * 100);
-                  rainChanceToday = Math.round(Math.max(...forecastData.list.map((item: any) => item.pop)) * 100);
-                }
-              }
-
-              const condition = data.weather[0].description
-                .split(' ')
-                .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
-                .join(' ');
-
-              if (!locationName) locationName = data.name;
-
-              const newData = {
-                temp: Math.round(data.main.temp),
-                condition: condition,
-                location: `${locationName}, BD`,
-                rainChance3Hr: rainChance3Hr,
-                rainChanceToday: rainChanceToday,
-                loading: false,
-                error: ''
-              };
-
-              setWeatherData(newData);
-              localStorage.setItem('weather_cache', JSON.stringify(newData));
-
-              // Sync device token and location with Laravel backend
-              try {
-                const token = localStorage.getItem('fcm_token');
-                if (token) {
-                  const { fetchApi } = await import('./api');
-                  await fetchApi('/user/device', {
-                    method: 'PUT',
-                    requireAuth: true,
-                    body: JSON.stringify({ device_token: token, lat, lon })
-                  });
-                }
-              } catch (e) {
-                console.error('Failed to sync device info', e);
-              }
-            } catch (err) {
-              if (!navigator.onLine) {
-                setWeatherData(prev => ({ ...prev, temp: null, loading: false, error: 'Internet needed' }));
-              } else {
-                setWeatherData(prev => ({ ...prev, loading: false, error: 'Failed to fetch weather' }));
-              }
-            }
-          },
-          (error) => {
-            setWeatherData(prev => ({ ...prev, loading: false, error: 'Location permission denied' }));
+      try {
+        const { Capacitor } = await import('@capacitor/core');
+        let lat, lon;
+        
+        if (Capacitor.isNativePlatform()) {
+          const { Geolocation } = await import('@capacitor/geolocation');
+          
+          let permission = await Geolocation.checkPermissions();
+          if (permission.location !== 'granted') {
+             const request = await Geolocation.requestPermissions();
+             if (request.location !== 'granted') {
+                setWeatherData(prev => ({ ...prev, loading: false, error: 'Location permission denied' }));
+                return;
+             }
           }
-        );
-      } else {
-        setWeatherData(prev => ({ ...prev, loading: false, error: 'Geolocation not supported' }));
+          
+          const position = await Geolocation.getCurrentPosition({ timeout: 10000, enableHighAccuracy: true });
+          lat = position.coords.latitude;
+          lon = position.coords.longitude;
+        } else {
+          if (!navigator.geolocation) {
+            setWeatherData(prev => ({ ...prev, loading: false, error: 'Geolocation not supported' }));
+            return;
+          }
+          
+          const getPos = () => new Promise<GeolocationPosition>((resolve, reject) => {
+             navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+          });
+          
+          const position = await getPos();
+          lat = position.coords.latitude;
+          lon = position.coords.longitude;
+        }
+
+        const data = await fetchApi(`/weather?lat=${lat}&lon=${lon}`, { requireAuth: true });
+
+        const newData = {
+          temp: data.temp,
+          condition: data.condition,
+          location: `${data.location}, BD`,
+          rainChance3Hr: data.rainChance3Hr,
+          rainChanceToday: data.rainChanceToday,
+          loading: false,
+          error: ''
+        };
+
+        setWeatherData(newData);
+        localStorage.setItem('weather_cache', JSON.stringify(newData));
+
+        // Sync device token and location with Laravel backend
+        try {
+          const token = localStorage.getItem('fcm_token');
+          if (token) {
+            const { fetchApi } = await import('../lib/api');
+            await fetchApi('/user/device', {
+              method: 'PUT',
+              requireAuth: true,
+              body: JSON.stringify({ device_token: token, lat, lon })
+            });
+          }
+        } catch (e) {
+          console.error('Failed to sync device info', e);
+        }
+      } catch (error) {
+        setWeatherData(prev => ({ ...prev, loading: false, error: 'Failed to fetch weather or location' }));
       }
     };
 
@@ -585,21 +592,19 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
     const fetchSummary = async () => {
       setIsGeneratingSummary(true);
       try {
-        const res = await fetch('/api/weather/summary', {
+        const { fetchApi } = await import('../lib/api');
+        const data = await fetchApi('/ai/weather/summary', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          requireAuth: true,
           body: JSON.stringify({ weatherData, crops })
         });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.summary) {
-            setWeatherSummary(data.summary);
-            localStorage.setItem('weather_ai_summary', JSON.stringify({
-              summary: data.summary,
-              timestamp: Date.now(),
-              cropsHash: cropsHash
-            }));
-          }
+        if (data && data.summary) {
+          setWeatherSummary(data.summary);
+          localStorage.setItem('weather_ai_summary', JSON.stringify({
+            summary: data.summary,
+            timestamp: Date.now(),
+            cropsHash: cropsHash
+          }));
         }
       } catch (err) {
         console.error(err);
@@ -623,10 +628,10 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-      className="p-5 md:p-6 flex flex-col gap-6"
+      className="p-3 md:p-4 flex flex-col gap-4"
     >
       {/* Weather Widget */}
-      <section className="bg-gradient-to-br from-cyan-600 to-blue-700 rounded-[2rem] p-5 text-white shadow-lg relative overflow-hidden min-h-[160px]">
+      <section className="bg-gradient-to-br from-cyan-600 to-blue-700 rounded-[2rem] p-3 text-white shadow-lg relative overflow-hidden min-h-[160px]">
         <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-10 translate-x-10 blur-2xl"></div>
 
         {weatherData.loading ? (
@@ -683,7 +688,7 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
 
       {/* AI Weather Summary */}
       {!weatherData.loading && !weatherData.error && crops && crops.length > 0 && (isGeneratingSummary || weatherSummary) && (
-        <section className="bg-white dark:bg-stone-800 rounded-[2rem] p-5 border border-stone-100 dark:border-stone-700 shadow-sm relative overflow-hidden -mt-2">
+        <section className="bg-white dark:bg-stone-800 rounded-[2rem] p-3 border border-stone-100 dark:border-stone-700 shadow-sm relative overflow-hidden -mt-2">
           <div className="flex items-start gap-4">
             <div className="w-10 h-10 rounded-2xl bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center flex-shrink-0 mt-0.5 border border-orange-100 dark:border-orange-900/50">
               <MessageSquare className="w-5 h-5 text-orange-600 dark:text-orange-400" />
@@ -717,7 +722,7 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
         </div>
 
         {!crops || crops.length === 0 ? (
-          <div className="bg-stone-50 dark:bg-stone-800 rounded-[2rem] p-5 text-center text-stone-500 text-sm">
+          <div className="bg-stone-50 dark:bg-stone-800 rounded-[2rem] p-3 text-center text-stone-500 text-sm">
             No crops added yet.
           </div>
         ) : (
@@ -728,7 +733,7 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
               const diffTime = today.getTime() - startDate.getTime();
               const diffDays = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
 
-              const totalDays = crop.phases?.reduce((acc: number, p: any) => acc + p.days_count, 0) || 120;
+              const totalDays = crop.phases?.reduce((acc: number, p: any) => acc + Number(p.days_count), 0) || 120;
               const progressPct = Math.min(100, Math.round((diffDays / totalDays) * 100));
 
               const theme = getCropTheme(crop.color_shade);
@@ -736,7 +741,7 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
               if (crop.phases && crop.phases.length > 0) {
                 let accDays = 0;
                 for (let i = 0; i < crop.phases.length; i++) {
-                  accDays += crop.phases[i].days_count;
+                  accDays += Number(crop.phases[i].days_count);
                   if (diffDays <= accDays) {
                     currentPhaseName = crop.phases[i].name;
                     break;
@@ -746,17 +751,17 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
               const midPhaseName = crop.phases && crop.phases.length >= 3 ? crop.phases[Math.floor(crop.phases.length / 2)].name : 'Growing';
 
               return (
-                <div key={crop.id} className="bg-white dark:bg-stone-900 rounded-[2rem] p-6 shadow-sm border border-stone-100 dark:border-stone-800 transition-colors relative overflow-hidden">
+                <div key={crop.id} className="bg-white dark:bg-stone-900 rounded-[2rem] p-4 shadow-sm border border-stone-100 dark:border-stone-800 transition-colors relative overflow-hidden">
                   <div className={`absolute -right-20 -top-20 w-64 h-64 bg-gradient-to-br ${theme.bgGlow} rounded-full blur-3xl opacity-60 dark:opacity-20`}></div>
 
-                  <div className="relative z-10 flex flex-col gap-6">
+                  <div className="relative z-10 flex flex-col gap-4">
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-4">
-                        <div className={`w-16 h-16 rounded-[1.5rem] flex items-center justify-center text-3xl border shadow-sm ${theme.bgPill} ${theme.borderIcon}`}>
+                        <div className={`w-16 h-16 rounded-[1.5rem] flex items-center justify-center text-lg border shadow-sm ${theme.bgPill} ${theme.borderIcon}`}>
                           {crop.emoji || '🌾'}
                         </div>
                         <div>
-                          <h4 className="font-bold text-stone-900 dark:text-stone-100 text-xl tracking-tight">{crop.land?.name || crop.name}</h4>
+                          <h4 className="font-bold text-stone-900 dark:text-stone-100 text-lg tracking-tight">{crop.land?.name || crop.name}</h4>
                           <div className="flex items-center gap-1.5 mt-1 text-sm font-medium text-stone-500 dark:text-stone-400">
                             <MapPin className="w-3.5 h-3.5" /> {crop.type} {crop.land?.area ? `• ${crop.land.area} Acres` : ''}
                           </div>
@@ -782,7 +787,7 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
                       <div className="flex justify-between items-end">
                         <div>
                           <span className="block text-[10px] uppercase tracking-wider font-bold text-stone-400">Timeline</span>
-                          <span className="block text-xl font-bold text-stone-900 dark:text-stone-100 mt-1">
+                          <span className="block text-lg font-bold text-stone-900 dark:text-stone-100 mt-1">
                             Day {diffDays} <span className="text-stone-400 text-sm font-medium">/ {totalDays}</span>
                           </span>
                         </div>
@@ -845,7 +850,7 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
         )}
 
         {tasks.length === 0 && (
-          <div className="bg-stone-50 dark:bg-stone-800 rounded-[2rem] p-5 text-center text-stone-500 text-sm">
+          <div className="bg-stone-50 dark:bg-stone-800 rounded-[2rem] p-3 text-center text-stone-500 text-sm">
             No tasks available.
           </div>
         )}
@@ -858,9 +863,9 @@ function AIToolsView({ onOpenPrediction, onOpenChatbot, onOpenFertilizer }: { on
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-      className="p-5 md:p-6"
+      className="p-3 md:p-4"
     >
-      <h2 className="text-2xl font-bold text-stone-900 dark:text-stone-100 mb-6">AI Solutions</h2>
+      <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100 mb-6">AI Solutions</h2>
 
       <div className="grid grid-cols-2 gap-4">
         <ToolCard title="Disease Detection" desc="Scan leaves for diseases" icon={<ScanLine className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />} color="bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800" />
@@ -869,14 +874,14 @@ function AIToolsView({ onOpenPrediction, onOpenChatbot, onOpenFertilizer }: { on
         <ToolCard title="Agri Chatbot" desc="Ask anything about farming" icon={<MessageSquare className="w-6 h-6 text-orange-600 dark:text-orange-400" />} color="bg-orange-50 dark:bg-orange-900/20 border-orange-100 dark:border-orange-800" onClick={onOpenChatbot} />
       </div>
 
-      <div className="mt-6 bg-stone-900 dark:bg-stone-950 rounded-[2rem] p-6 relative overflow-hidden text-white shadow-xl">
+      <div className="mt-6 bg-stone-900 dark:bg-stone-950 rounded-[2rem] p-4 relative overflow-hidden text-white shadow-xl">
         <div className="absolute -right-4 -bottom-4 w-40 h-40 bg-emerald-500/20 rounded-full blur-3xl"></div>
         <div className="relative z-10 flex flex-col gap-4">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center shrink-0 border border-white/10">
               <ImageIcon className="w-6 h-6 text-emerald-400" />
             </div>
-            <h3 className="font-bold text-xl">Quick Scan</h3>
+            <h3 className="font-bold text-lg">Quick Scan</h3>
           </div>
           <p className="text-sm text-stone-300 leading-relaxed">Instantly diagnose plant diseases using your camera and our AI model. Get immediate treatment suggestions.</p>
           <button className="bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-3 px-5 rounded-xl text-sm w-full shadow-lg shadow-emerald-500/30 transition-colors mt-2 flex items-center justify-center gap-2">
@@ -909,9 +914,9 @@ function ChatbotView({ onBack, contextData }: { onBack: () => void, contextData:
     setLoading(true);
 
     try {
-      const res = await fetch('/api/chatbot', {
+      const data = await fetchApi('/ai/chatbot', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        requireAuth: true,
         body: JSON.stringify({
           message: userMessage,
           previousSummary: rollingSummary,
@@ -919,7 +924,6 @@ function ChatbotView({ onBack, contextData }: { onBack: () => void, contextData:
         })
       });
 
-      const data = await res.json();
       if (data.error) throw new Error(data.error);
 
       setMessages(prev => [...prev, { role: 'ai', text: data.response }]);
@@ -944,7 +948,7 @@ function ChatbotView({ onBack, contextData }: { onBack: () => void, contextData:
         <div className="w-10"></div>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-stone-50 dark:bg-stone-950">
+      <div className="flex-1 overflow-y-auto p-3 space-y-4 bg-stone-50 dark:bg-stone-950">
         <div className="flex justify-start">
           <div className="bg-white dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-2xl rounded-tl-sm p-4 max-w-[85%] shadow-sm">
             <p className="text-stone-700 dark:text-stone-300 text-sm">Hello! I am your AI assistant. I have already loaded your crops, lands, and tasks data. How can I help you today?</p>
@@ -953,8 +957,8 @@ function ChatbotView({ onBack, contextData }: { onBack: () => void, contextData:
         {messages.map((msg, i) => (
           <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`p-4 max-w-[85%] rounded-2xl shadow-sm text-sm ${msg.role === 'user'
-                ? 'bg-emerald-600 text-white rounded-tr-sm'
-                : 'bg-white dark:bg-stone-800 border border-stone-100 dark:border-stone-700 text-stone-700 dark:text-stone-300 rounded-tl-sm'
+              ? 'bg-emerald-600 text-white rounded-tr-sm'
+              : 'bg-white dark:bg-stone-800 border border-stone-100 dark:border-stone-700 text-stone-700 dark:text-stone-300 rounded-tl-sm'
               }`}>
               {msg.text}
             </div>
@@ -1006,16 +1010,15 @@ function FertilizerAIView({ onBack, crops, lands }: { onBack: () => void, crops:
     setApiError('');
 
     try {
-      const res = await fetch('/api/fertilizer/questions', {
+      const data = await fetchApi('/ai/fertilizer/questions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        requireAuth: true,
         body: JSON.stringify({
           cropName: crop.name,
           cropType: crop.type,
           landArea: crop.land?.area
         })
       });
-      const data = await res.json();
       if (data.error) throw new Error(data.error);
 
       setQuestions(data.questions);
@@ -1042,9 +1045,9 @@ function FertilizerAIView({ onBack, crops, lands }: { onBack: () => void, crops:
     }));
 
     try {
-      const res = await fetch('/api/fertilizer/recommendation', {
+      const data = await fetchApi('/ai/fertilizer/recommendation', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        requireAuth: true,
         body: JSON.stringify({
           cropName: selectedCrop.name,
           cropType: selectedCrop.type,
@@ -1052,7 +1055,6 @@ function FertilizerAIView({ onBack, crops, lands }: { onBack: () => void, crops:
           qaPairs
         })
       });
-      const data = await res.json();
       if (data.error) throw new Error(data.error);
 
       setRecommendation(data);
@@ -1076,7 +1078,7 @@ function FertilizerAIView({ onBack, crops, lands }: { onBack: () => void, crops:
         <div className="w-10"></div>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-6 bg-stone-50 dark:bg-stone-950 flex flex-col">
+      <div className="flex-1 overflow-y-auto p-4 bg-stone-50 dark:bg-stone-950 flex flex-col">
         {apiError && (
           <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-4 rounded-2xl text-sm font-medium border border-red-100 dark:border-red-900/30 mb-6">
             {apiError}
@@ -1086,12 +1088,12 @@ function FertilizerAIView({ onBack, crops, lands }: { onBack: () => void, crops:
         {step === 'SELECT_CROP' && (
           <div className="space-y-6">
             <div>
-              <h3 className="text-xl font-bold text-stone-900 dark:text-stone-100 mb-2">Select a Crop to Diagnose</h3>
+              <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100 mb-2">Select a Crop to Diagnose</h3>
               <p className="text-sm text-stone-500 dark:text-stone-400">Our AI will ask you a few questions about its current state to recommend the perfect fertilizer regimen.</p>
             </div>
 
             {(!crops || crops.length === 0) ? (
-              <div className="bg-white dark:bg-stone-800 rounded-[2rem] p-6 text-center shadow-sm">
+              <div className="bg-white dark:bg-stone-800 rounded-[2rem] p-4 text-center shadow-sm">
                 <p className="text-stone-500 dark:text-stone-400 font-medium">You don't have any crops added yet.</p>
               </div>
             ) : (
@@ -1103,7 +1105,7 @@ function FertilizerAIView({ onBack, crops, lands }: { onBack: () => void, crops:
                     className="flex items-center justify-between bg-white dark:bg-stone-800 p-4 rounded-3xl border border-stone-100 dark:border-stone-700 shadow-sm hover:border-cyan-200 dark:hover:border-cyan-800 transition-colors text-left group"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-cyan-50 dark:bg-cyan-900/20 rounded-2xl flex items-center justify-center text-2xl border border-cyan-100 dark:border-cyan-900/50 group-hover:scale-105 transition-transform">
+                      <div className="w-12 h-12 bg-cyan-50 dark:bg-cyan-900/20 rounded-2xl flex items-center justify-center text-lg border border-cyan-100 dark:border-cyan-900/50 group-hover:scale-105 transition-transform">
                         {crop.emoji || '🌱'}
                       </div>
                       <div>
@@ -1128,7 +1130,7 @@ function FertilizerAIView({ onBack, crops, lands }: { onBack: () => void, crops:
             >
               <Droplets className="w-10 h-10 text-cyan-500 animate-pulse" />
             </motion.div>
-            <h3 className="text-2xl font-bold text-stone-900 dark:text-stone-100 mb-3 tracking-tight">
+            <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100 mb-3 tracking-tight">
               {step === 'GENERATING_QUESTIONS' ? 'Analyzing Crop Context...' : 'Formulating Recommendations...'}
             </h3>
             <p className="text-stone-500 dark:text-stone-400 text-sm max-w-sm mx-auto leading-relaxed">
@@ -1158,14 +1160,12 @@ function FertilizerAIView({ onBack, crops, lands }: { onBack: () => void, crops:
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -40 }}
                       transition={{ duration: 0.3, ease: "easeInOut" }}
-                      className="bg-white dark:bg-stone-900 p-6 md:p-8 rounded-[2rem] border border-stone-100 dark:border-stone-800 shadow-sm relative overflow-hidden group w-full"
+                      className="w-full"
                     >
-                      <div className="absolute top-0 left-0 w-1.5 h-full bg-cyan-100 dark:bg-cyan-900/30 group-hover:bg-cyan-500 transition-colors"></div>
-                      <h4 className="font-bold text-stone-900 dark:text-stone-100 text-xl md:text-2xl mb-8 pl-2 leading-tight">{q.question}</h4>
-                      <div className="space-y-4 pl-2">
+                      <h4 className="font-bold text-stone-900 dark:text-stone-100 text-lg md:text-lg mb-8 leading-tight px-1">{q.question}</h4>
+                      <div className="space-y-3">
                         {q.options.map((opt: string) => (
                           <motion.button
-                            whileHover={{ scale: 1.01, x: 4 }}
                             whileTap={{ scale: 0.98 }}
                             key={opt}
                             onClick={() => {
@@ -1174,18 +1174,18 @@ function FertilizerAIView({ onBack, crops, lands }: { onBack: () => void, crops:
                                 setTimeout(() => setCurrentQuestionIdx(prev => prev + 1), 350);
                               }
                             }}
-                            className={`w-full text-left p-5 rounded-2xl border transition-all duration-300 ${answers[q.id] === opt
-                                ? 'border-cyan-500 bg-cyan-50/80 dark:bg-cyan-900/30 text-cyan-900 dark:text-cyan-100 shadow-md shadow-cyan-500/10'
-                                : 'border-stone-200 dark:border-stone-700 bg-stone-50/50 dark:bg-stone-800/50 text-stone-700 dark:text-stone-300 hover:border-cyan-300 dark:hover:border-cyan-700 hover:bg-white dark:hover:bg-stone-800'
+                            className={`w-full text-left p-4 rounded-2xl transition-all duration-200 ${answers[q.id] === opt
+                              ? 'bg-cyan-50/80 dark:bg-cyan-900/40 text-cyan-900 dark:text-cyan-100 border-2 border-cyan-500 shadow-sm'
+                              : 'bg-white dark:bg-stone-900 border-2 border-transparent shadow-sm text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800/80'
                               }`}
                           >
                             <div className="flex items-center gap-4">
-                              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${answers[q.id] === opt ? 'border-cyan-500 bg-cyan-500' : 'border-stone-300 dark:border-stone-600'}`}>
+                              <div className={`w-6 h-6 shrink-0 rounded-full border-2 flex items-center justify-center transition-colors ${answers[q.id] === opt ? 'border-cyan-500 bg-cyan-500' : 'border-stone-300 dark:border-stone-600'}`}>
                                 <AnimatePresence>
                                   {answers[q.id] === opt && <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} className="w-2.5 h-2.5 bg-white rounded-full"></motion.div>}
                                 </AnimatePresence>
                               </div>
-                              <span className="font-medium text-base md:text-lg">{opt}</span>
+                              <span className="font-medium text-[15px] md:text-base leading-snug">{opt}</span>
                             </div>
                           </motion.button>
                         ))}
@@ -1200,7 +1200,7 @@ function FertilizerAIView({ onBack, crops, lands }: { onBack: () => void, crops:
               {currentQuestionIdx > 0 && (
                 <button
                   onClick={() => setCurrentQuestionIdx(prev => prev - 1)}
-                  className="p-5 rounded-3xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-700 transition-colors shadow-sm"
+                  className="p-3 rounded-3xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-700 transition-colors shadow-sm"
                 >
                   <ArrowLeft className="w-6 h-6" />
                 </button>
@@ -1229,12 +1229,12 @@ function FertilizerAIView({ onBack, crops, lands }: { onBack: () => void, crops:
         {step === 'RESULT' && recommendation && (
           <div className="space-y-6 pb-12">
             {recommendation.needs_fertilizer === false ? (
-              <div className="bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-[2.5rem] p-8 text-white shadow-xl text-center relative overflow-hidden">
+              <div className="bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-[2.5rem] p-5 text-white shadow-xl text-center relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
                 <div className="w-20 h-20 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner border border-white/30">
                   <ScanLine className="w-10 h-10 text-white" />
                 </div>
-                <h3 className="text-3xl font-bold mb-3 tracking-tight">Healthy Crop!</h3>
+                <h3 className="text-lg font-bold mb-3 tracking-tight">Healthy Crop!</h3>
                 <p className="text-emerald-50 text-base leading-relaxed font-medium">
                   {recommendation.no_fertilizer_reason || 'Based on your answers, your crop is doing perfectly fine and does not require any additional fertilizer at this moment.'}
                 </p>
@@ -1244,19 +1244,19 @@ function FertilizerAIView({ onBack, crops, lands }: { onBack: () => void, crops:
               </div>
             ) : (
               <div className="space-y-6">
-                <div className="bg-gradient-to-br from-cyan-600 to-indigo-600 rounded-[2.5rem] p-8 text-white shadow-xl relative overflow-hidden">
+                <div className="bg-gradient-to-br from-cyan-600 to-indigo-600 rounded-[2.5rem] p-5 text-white shadow-xl relative overflow-hidden">
                   <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
-                  <h3 className="text-3xl font-bold mb-2 tracking-tight">Recommendations</h3>
+                  <h3 className="text-lg font-bold mb-2 tracking-tight">Recommendations</h3>
                   <p className="text-cyan-50 text-sm font-medium opacity-90">AI detected nutrient deficiencies. Apply the following for optimal yield.</p>
                 </div>
 
                 <div className="space-y-4">
                   {recommendation.fertilizers?.map((fert: any, idx: number) => (
-                    <div key={idx} className="bg-white dark:bg-stone-800 rounded-3xl p-6 border border-stone-100 dark:border-stone-700 shadow-lg shadow-stone-200/50 dark:shadow-none relative">
+                    <div key={idx} className="bg-white dark:bg-stone-800 rounded-3xl p-4 border border-stone-100 dark:border-stone-700 shadow-lg shadow-stone-200/50 dark:shadow-none relative">
                       <div className="absolute top-6 right-6 w-12 h-12 bg-cyan-50 dark:bg-cyan-900/20 rounded-2xl flex items-center justify-center">
                         <Droplets className="w-6 h-6 text-cyan-600 dark:text-cyan-400" />
                       </div>
-                      <h4 className="text-xl font-bold text-stone-900 dark:text-stone-100 pr-14 mb-1">{fert.name}</h4>
+                      <h4 className="text-lg font-bold text-stone-900 dark:text-stone-100 pr-14 mb-1">{fert.name}</h4>
                       <div className="inline-block bg-stone-100 dark:bg-stone-700 text-stone-700 dark:text-stone-300 text-xs font-bold px-3 py-1 rounded-full mb-6">
                         {fert.amount}
                       </div>
@@ -1338,10 +1338,10 @@ function CalendarView({ tasks, toggleTask }: { tasks: any[], toggleTask: (id: nu
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-      className={`p-5 md:p-6 ${viewMode === 'week' ? 'pb-32' : 'pb-24 flex flex-col h-full'}`}
+      className={`p-3 md:p-4 ${viewMode === 'week' ? 'pb-32' : 'pb-24 flex flex-col h-full'}`}
     >
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-stone-900 dark:text-stone-100">Schedule</h2>
+        <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100">Schedule</h2>
         <div className="bg-stone-100 dark:bg-stone-800 p-1 rounded-xl flex">
           <button onClick={() => setViewMode('week')} className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors ${viewMode === 'week' ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 shadow-sm' : 'text-stone-500 hover:text-stone-700 dark:hover:text-stone-300'}`}>Week</button>
           <button onClick={() => setViewMode('month')} className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors ${viewMode === 'month' ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 shadow-sm' : 'text-stone-500 hover:text-stone-700 dark:hover:text-stone-300'}`}>Month</button>
@@ -1351,7 +1351,7 @@ function CalendarView({ tasks, toggleTask }: { tasks: any[], toggleTask: (id: nu
       {viewMode === 'month' ? (
         <div className="bg-white dark:bg-stone-900 flex-1 flex flex-col -mx-5 md:-mx-6 -mb-24 min-h-[70vh] border-t border-stone-100 dark:border-stone-800">
           <div className="flex justify-between items-center p-4 border-b border-stone-100 dark:border-stone-800">
-            <select value={currentMonth} onChange={handleMonthChange} className="bg-transparent border-none font-bold text-xl text-stone-900 dark:text-stone-100 focus:ring-0 cursor-pointer outline-none">
+            <select value={currentMonth} onChange={handleMonthChange} className="bg-transparent border-none font-bold text-lg text-stone-900 dark:text-stone-100 focus:ring-0 cursor-pointer outline-none">
               {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map((m, i) => (
                 <option key={m} value={i}>{m}</option>
               ))}
@@ -1413,9 +1413,14 @@ function CalendarView({ tasks, toggleTask }: { tasks: any[], toggleTask: (id: nu
               <motion.div
                 key={selectedDate.toISOString()}
                 custom={slideDir}
-                initial={(dir: number) => ({ opacity: 0, x: dir * 50 })}
-                animate={{ opacity: 1, x: 0 }}
-                exit={(dir: number) => ({ opacity: 0, x: -dir * 50 })}
+                variants={{
+                  enter: (dir: number) => ({ opacity: 0, x: dir * 50 }),
+                  center: { opacity: 1, x: 0 },
+                  exit: (dir: number) => ({ opacity: 0, x: -dir * 50 })
+                }}
+                initial="enter"
+                animate="center"
+                exit="exit"
                 transition={{ type: 'spring', stiffness: 400, damping: 35 }}
                 className="flex justify-between absolute inset-0 w-full cursor-grab active:cursor-grabbing"
                 drag="x"
@@ -1473,9 +1478,14 @@ function CalendarView({ tasks, toggleTask }: { tasks: any[], toggleTask: (id: nu
               <motion.div
                 key={selectedDate.toISOString()}
                 custom={slideDir}
-                initial={(dir: number) => ({ opacity: 0, x: dir * 50 })}
-                animate={{ opacity: 1, x: 0 }}
-                exit={(dir: number) => ({ opacity: 0, x: -dir * 50 })}
+                variants={{
+                  enter: (dir: number) => ({ opacity: 0, x: dir * 50 }),
+                  center: { opacity: 1, x: 0 },
+                  exit: (dir: number) => ({ opacity: 0, x: -dir * 50 })
+                }}
+                initial="enter"
+                animate="center"
+                exit="exit"
                 transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                 className="space-y-6 cursor-grab active:cursor-grabbing"
                 drag="x"
@@ -1519,7 +1529,7 @@ function CalendarView({ tasks, toggleTask }: { tasks: any[], toggleTask: (id: nu
                           </div>
                         </div>
                       ) : (
-                        <div className="bg-stone-50 dark:bg-stone-800 rounded-[2rem] p-8 text-center shadow-sm">
+                        <div className="bg-stone-50 dark:bg-stone-800 rounded-[2rem] p-5 text-center shadow-sm">
                           <div className="w-12 h-12 bg-white dark:bg-stone-900 rounded-full flex items-center justify-center mx-auto mb-3">
                             <FileText className="w-5 h-5 text-stone-400" />
                           </div>
@@ -1560,9 +1570,9 @@ function CalendarView({ tasks, toggleTask }: { tasks: any[], toggleTask: (id: nu
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               className="fixed bottom-0 left-0 right-0 bg-white dark:bg-stone-900 z-[70] rounded-t-[2rem] max-h-[85vh] flex flex-col shadow-2xl"
             >
-              <div className="p-6 flex justify-between items-center border-b border-stone-100 dark:border-stone-800 sticky top-0 bg-white dark:bg-stone-900 rounded-t-[2rem] z-10">
+              <div className="p-4 flex justify-between items-center border-b border-stone-100 dark:border-stone-800 sticky top-0 bg-white dark:bg-stone-900 rounded-t-[2rem] z-10">
                 <div>
-                  <h3 className="text-xl font-bold text-stone-900 dark:text-stone-100">
+                  <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100">
                     {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                   </h3>
                   <p className="text-sm text-stone-500 dark:text-stone-400 font-medium mt-0.5">{tasksForSelectedDate.length} Tasks Scheduled</p>
@@ -1571,13 +1581,13 @@ function CalendarView({ tasks, toggleTask }: { tasks: any[], toggleTask: (id: nu
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <div className="p-6 overflow-y-auto flex-1 pb-12 flex flex-col gap-3 bg-stone-50 dark:bg-stone-950">
+              <div className="p-4 overflow-y-auto flex-1 pb-12 flex flex-col gap-3 bg-stone-50 dark:bg-stone-950">
                 {tasksForSelectedDate.length > 0 ? (
                   tasksForSelectedDate.map(task => (
                     <TaskCard key={task.id} task={task} onToggle={() => toggleTask(task.id)} />
                   ))
                 ) : (
-                  <div className="bg-white dark:bg-stone-900 border border-stone-100 dark:border-stone-800 rounded-[1.5rem] p-6 text-center shadow-sm">
+                  <div className="bg-white dark:bg-stone-900 border border-stone-100 dark:border-stone-800 rounded-[1.5rem] p-4 text-center shadow-sm">
                     <div className="w-12 h-12 bg-stone-50 dark:bg-stone-800 rounded-full flex items-center justify-center mx-auto mb-3">
                       <FileText className="w-5 h-5 text-stone-400" />
                     </div>
@@ -1613,8 +1623,8 @@ function ProfileView({ lands, crops, onEdit, onSignOut, fetchDashboardData }: { 
   const handleSaveEditLand = async () => {
     if (!landToEdit || !editLandName || !editLandArea) return;
     try {
-      await fetchApi(`/lands/${landToEdit.id}`, { 
-        method: 'PUT', 
+      await fetchApi(`/lands/${landToEdit.id}`, {
+        method: 'PUT',
         requireAuth: true,
         body: JSON.stringify({ name: editLandName, area: editLandArea })
       });
@@ -1628,7 +1638,7 @@ function ProfileView({ lands, crops, onEdit, onSignOut, fetchDashboardData }: { 
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-      className="p-5 md:p-6"
+      className="p-3 md:p-4"
     >
       <div className="flex flex-col items-center text-center mb-8 pt-4 relative">
         <button onClick={onEdit} className="absolute top-0 right-0 p-2 bg-white dark:bg-stone-800 rounded-full shadow-sm text-stone-500 hover:text-emerald-600 transition-colors">
@@ -1639,7 +1649,7 @@ function ProfileView({ lands, crops, onEdit, onSignOut, fetchDashboardData }: { 
             <User className="w-12 h-12 text-emerald-600 dark:text-emerald-400" />
           </div>
         </div>
-        <h2 className="text-3xl font-bold text-stone-900 dark:text-stone-100 tracking-tight">Karim Mia</h2>
+        <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100 tracking-tight">Karim Mia</h2>
         <p className="text-stone-500 dark:text-stone-400 font-medium text-sm flex items-center justify-center gap-1.5 mt-2 bg-stone-100 dark:bg-stone-800 py-1.5 px-4 rounded-full">
           <MapPin className="w-3.5 h-3.5" />
           Natore, Rajshahi
@@ -1647,12 +1657,12 @@ function ProfileView({ lands, crops, onEdit, onSignOut, fetchDashboardData }: { 
       </div>
 
       <div className="grid grid-cols-2 gap-4 mb-8">
-        <div className="bg-white dark:bg-stone-800 p-5 rounded-[2rem] border border-stone-100 dark:border-stone-700 text-center shadow-sm">
-          <div className="text-3xl font-bold text-stone-900 dark:text-stone-100">{lands?.reduce((sum, l) => sum + (parseFloat(l.area) || 0), 0) || 0}</div>
+        <div className="bg-white dark:bg-stone-800 p-3 rounded-[2rem] border border-stone-100 dark:border-stone-700 text-center shadow-sm">
+          <div className="text-lg font-bold text-stone-900 dark:text-stone-100">{lands?.reduce((sum, l) => sum + (parseFloat(l.area) || 0), 0) || 0}</div>
           <div className="text-[10px] font-bold text-stone-400 dark:text-stone-500 uppercase tracking-wider mt-1">Acres Total</div>
         </div>
-        <div className="bg-white dark:bg-stone-800 p-5 rounded-[2rem] border border-stone-100 dark:border-stone-700 text-center shadow-sm">
-          <div className="text-3xl font-bold text-stone-900 dark:text-stone-100">{lands?.length || 0}</div>
+        <div className="bg-white dark:bg-stone-800 p-3 rounded-[2rem] border border-stone-100 dark:border-stone-700 text-center shadow-sm">
+          <div className="text-lg font-bold text-stone-900 dark:text-stone-100">{lands?.length || 0}</div>
           <div className="text-[10px] font-bold text-stone-400 dark:text-stone-500 uppercase tracking-wider mt-1">Total Lands</div>
         </div>
       </div>
@@ -1689,7 +1699,7 @@ function ProfileView({ lands, crops, onEdit, onSignOut, fetchDashboardData }: { 
             ))}
           </div>
         ) : (
-          <div className="bg-stone-50 dark:bg-stone-800 rounded-[2rem] p-5 text-center text-stone-500 text-sm">
+          <div className="bg-stone-50 dark:bg-stone-800 rounded-[2rem] p-3 text-center text-stone-500 text-sm">
             No lands added yet.
           </div>
         )}
@@ -1705,30 +1715,30 @@ function ProfileView({ lands, crops, onEdit, onSignOut, fetchDashboardData }: { 
       <AnimatePresence>
         {landToDelete !== null && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }} 
-              animate={{ opacity: 1 }} 
-              exit={{ opacity: 0 }} 
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               className="absolute inset-0 bg-black/40 backdrop-blur-sm"
               onClick={() => setLandToDelete(null)}
             />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 20 }} 
-              animate={{ opacity: 1, scale: 1, y: 0 }} 
-              exit={{ opacity: 0, scale: 0.95, y: 20 }} 
-              className="relative bg-white dark:bg-stone-900 rounded-[2rem] p-6 max-w-sm w-full shadow-2xl border border-stone-100 dark:border-stone-800"
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white dark:bg-stone-900 rounded-[2rem] p-4 max-w-sm w-full shadow-2xl border border-stone-100 dark:border-stone-800"
             >
               {crops.some((c: any) => c.land?.id === landToDelete.id || c.land_id === landToDelete.id) ? (
                 <>
                   <div className="w-16 h-16 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4 mx-auto text-red-500">
                     <LogOut className="w-8 h-8" />
                   </div>
-                  <h3 className="text-xl font-bold text-stone-900 dark:text-stone-100 text-center mb-2">Cannot Delete Field</h3>
+                  <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100 text-center mb-2">Cannot Delete Field</h3>
                   <p className="text-stone-500 dark:text-stone-400 text-center text-sm mb-6">
                     You have crops in this field. Please remove the crops first before deleting this field.
                   </p>
-                  <button 
-                    onClick={() => setLandToDelete(null)} 
+                  <button
+                    onClick={() => setLandToDelete(null)}
                     className="w-full py-3.5 rounded-xl font-bold text-stone-600 dark:text-stone-300 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors"
                   >
                     Got it
@@ -1739,19 +1749,19 @@ function ProfileView({ lands, crops, onEdit, onSignOut, fetchDashboardData }: { 
                   <div className="w-16 h-16 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4 mx-auto text-red-500">
                     <Trash2 className="w-8 h-8" />
                   </div>
-                  <h3 className="text-xl font-bold text-stone-900 dark:text-stone-100 text-center mb-2">Delete Field?</h3>
+                  <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100 text-center mb-2">Delete Field?</h3>
                   <p className="text-stone-500 dark:text-stone-400 text-center text-sm mb-6">
                     Are you sure you want to delete {landToDelete.name}? This action cannot be undone.
                   </p>
                   <div className="flex gap-3">
-                    <button 
-                      onClick={() => setLandToDelete(null)} 
+                    <button
+                      onClick={() => setLandToDelete(null)}
                       className="flex-1 py-3.5 rounded-xl font-bold text-stone-600 dark:text-stone-300 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors"
                     >
                       Cancel
                     </button>
-                    <button 
-                      onClick={confirmDeleteLand} 
+                    <button
+                      onClick={confirmDeleteLand}
                       className="flex-1 py-3.5 rounded-xl font-bold text-white bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/30 transition-all active:scale-95"
                     >
                       Delete
@@ -1765,49 +1775,49 @@ function ProfileView({ lands, crops, onEdit, onSignOut, fetchDashboardData }: { 
 
         {landToEdit !== null && (
           <div className="fixed inset-0 z-[100] flex flex-col justify-end">
-            <motion.div 
-              initial={{ opacity: 0 }} 
-              animate={{ opacity: 1 }} 
-              exit={{ opacity: 0 }} 
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               className="absolute inset-0 bg-black/40 backdrop-blur-sm"
               onClick={() => setLandToEdit(null)}
             />
-            <motion.div 
-              initial={{ y: '100%' }} 
-              animate={{ y: 0 }} 
-              exit={{ y: '100%' }} 
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }} 
-              className="relative bg-white dark:bg-stone-900 rounded-t-[2rem] p-6 w-full shadow-2xl border-t border-stone-100 dark:border-stone-800 pb-[env(safe-area-inset-bottom)]"
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="relative bg-white dark:bg-stone-900 rounded-t-[2rem] p-4 w-full shadow-2xl border-t border-stone-100 dark:border-stone-800 pb-[env(safe-area-inset-bottom)]"
             >
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-bold text-stone-900 dark:text-stone-100">Edit Field</h3>
+                <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100">Edit Field</h3>
                 <button onClick={() => setLandToEdit(null)} className="w-8 h-8 bg-stone-100 dark:bg-stone-800 rounded-full flex items-center justify-center text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors">
                   <X className="w-4 h-4" />
                 </button>
               </div>
-              
+
               <div className="space-y-4 mb-6">
                 <div>
                   <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Field Name</label>
-                  <input 
-                    type="text" 
-                    value={editLandName} 
-                    onChange={e => setEditLandName(e.target.value)} 
-                    className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-4 text-stone-900 dark:text-stone-100 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/50 block shadow-sm transition-all" 
+                  <input
+                    type="text"
+                    value={editLandName}
+                    onChange={e => setEditLandName(e.target.value)}
+                    className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-4 text-stone-900 dark:text-stone-100 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/50 block shadow-sm transition-all"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Field Area (Acres)</label>
-                  <input 
-                    type="number" 
-                    value={editLandArea} 
-                    onChange={e => setEditLandArea(e.target.value)} 
-                    className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-4 text-stone-900 dark:text-stone-100 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/50 block shadow-sm transition-all" 
+                  <input
+                    type="number"
+                    value={editLandArea}
+                    onChange={e => setEditLandArea(e.target.value)}
+                    className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-4 text-stone-900 dark:text-stone-100 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/50 block shadow-sm transition-all"
                   />
                 </div>
               </div>
-              
-              <button 
+
+              <button
                 onClick={handleSaveEditLand}
                 disabled={!editLandName || !editLandArea}
                 className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center text-lg active:scale-[0.98]"
@@ -1836,7 +1846,7 @@ function EditProfileView({ onBack, onSave }: { onBack: () => void, onSave: () =>
         <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100">Edit Profile</h2>
         <div className="w-10"></div>
       </header>
-      <div className="p-6 flex-1 overflow-y-auto">
+      <div className="p-4 flex-1 overflow-y-auto">
         <div className="flex justify-center mb-8">
           <div className="relative">
             <div className="w-24 h-24 bg-emerald-100 dark:bg-emerald-900/50 rounded-full flex items-center justify-center border-4 border-white dark:border-stone-800 shadow-sm">
@@ -1862,7 +1872,7 @@ function EditProfileView({ onBack, onSave }: { onBack: () => void, onSave: () =>
           </div>
         </div>
       </div>
-      <div className="p-5 border-t border-stone-100 dark:border-stone-800 bg-white dark:bg-stone-900">
+      <div className="p-3 border-t border-stone-100 dark:border-stone-800 bg-white dark:bg-stone-900">
         <button onClick={onSave} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-600/20 transition-colors">
           Save Changes
         </button>
@@ -1889,7 +1899,7 @@ function AddCropView({ lands, onBack, onSave }: { lands: any[], onBack: () => vo
 
   const daysInPickerMonth = new Date(pickerYear, pickerMonth + 1, 0).getDate();
   const firstDayOfPickerMonth = new Date(pickerYear, pickerMonth, 1).getDay();
-  const pickerDays = Array.from({ length: firstDayOfPickerMonth }, () => null).concat(Array.from({ length: daysInPickerMonth }, (_, i) => i + 1));
+  const pickerDays = (Array.from({ length: firstDayOfPickerMonth }, () => null) as (number | null)[]).concat(Array.from({ length: daysInPickerMonth }, (_, i) => i + 1));
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [reviewData, setReviewData] = useState<any>(null);
@@ -1908,12 +1918,11 @@ function AddCropView({ lands, onBack, onSave }: { lands: any[], onBack: () => vo
       setLoadingText(loadingTexts[Math.floor(Math.random() * loadingTexts.length)]);
     }, 800);
     try {
-      const res = await fetch('/api/gemini', {
+      const data = await fetchApi('/ai/crop-phases', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        requireAuth: true,
         body: JSON.stringify({ cropType: finalCropType, startDate, landArea })
       });
-      const data = await res.json();
       if (data.error) throw new Error(data.error);
 
       data.phases = data.phases.map((p: any) => ({ ...p, checked: true, original_days_count: p.days_count }));
@@ -1988,7 +1997,7 @@ function AddCropView({ lands, onBack, onSave }: { lands: any[], onBack: () => vo
     for (const p of reviewData.phases) {
       if (p.checked) {
         const phaseStart = new Date(currentDate);
-        currentDate.setDate(currentDate.getDate() + p.days_count);
+        currentDate.setDate(currentDate.getDate() + Number(p.days_count));
         const phaseEnd = new Date(currentDate);
 
         finalPhases.push({
@@ -2049,10 +2058,10 @@ function AddCropView({ lands, onBack, onSave }: { lands: any[], onBack: () => vo
       {/* Loading Overlay */}
       <AnimatePresence>
         {isGenerating && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white dark:bg-stone-800 rounded-3xl p-8 w-full max-w-sm flex flex-col items-center text-center shadow-2xl">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white dark:bg-stone-800 rounded-3xl p-5 w-full max-w-sm flex flex-col items-center text-center shadow-2xl">
               <div className="w-16 h-16 border-4 border-emerald-100 border-t-emerald-600 rounded-full animate-spin mb-6"></div>
-              <h3 className="text-xl font-bold text-stone-900 dark:text-stone-100 mb-2">{loadingText}</h3>
+              <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100 mb-2">{loadingText}</h3>
               <p className="text-stone-500 dark:text-stone-400 text-sm">Please wait while our AI models analyze the best schedule for your crop.</p>
             </motion.div>
           </motion.div>
@@ -2060,7 +2069,7 @@ function AddCropView({ lands, onBack, onSave }: { lands: any[], onBack: () => vo
       </AnimatePresence>
 
       {!reviewData ? (
-        <div className="p-6 flex-1 overflow-y-auto space-y-6">
+        <div className="p-4 flex-1 overflow-y-auto space-y-6">
           <div>
             <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Crop Type</label>
             <div className="flex flex-col gap-3">
@@ -2132,7 +2141,7 @@ function AddCropView({ lands, onBack, onSave }: { lands: any[], onBack: () => vo
           </div>
         </div>
       ) : (
-        <div className="p-6 flex-1 overflow-y-auto space-y-4">
+        <div className="p-4 flex-1 overflow-y-auto space-y-4">
           <div className="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-2xl border border-emerald-100 dark:border-emerald-800/30">
             <div className="flex justify-between items-start">
               <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300">
@@ -2163,7 +2172,7 @@ function AddCropView({ lands, onBack, onSave }: { lands: any[], onBack: () => vo
         </div>
       )}
 
-      <div className="p-5 border-t border-stone-100 dark:border-stone-800 bg-white dark:bg-stone-900">
+      <div className="p-3 border-t border-stone-100 dark:border-stone-800 bg-white dark:bg-stone-900">
         {!reviewData ? (
           <button onClick={handleGenerate} disabled={isGenerating} className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-70 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2">
             {isGenerating ? 'Analyzing with AI...' : 'Analyze & Generate Schedule'}
@@ -2181,8 +2190,8 @@ function AddCropView({ lands, onBack, onSave }: { lands: any[], onBack: () => vo
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowCropSelect(false)} className="fixed inset-0 bg-black/60 z-[60] backdrop-blur-sm" />
             <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="fixed bottom-0 left-0 right-0 bg-white dark:bg-stone-900 z-[70] rounded-t-[2rem] max-h-[85vh] flex flex-col shadow-2xl pb-[env(safe-area-inset-bottom)]">
-              <div className="p-6 flex justify-between items-center border-b border-stone-100 dark:border-stone-800">
-                <h3 className="text-xl font-bold text-stone-900 dark:text-stone-100">Select Crop</h3>
+              <div className="p-4 flex justify-between items-center border-b border-stone-100 dark:border-stone-800">
+                <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100">Select Crop</h3>
                 <button onClick={() => setShowCropSelect(false)} className="w-8 h-8 bg-stone-100 dark:bg-stone-800 rounded-full flex items-center justify-center text-stone-500"><X className="w-4 h-4" /></button>
               </div>
               <div className="p-4 flex flex-col gap-2 overflow-y-auto">
@@ -2200,8 +2209,8 @@ function AddCropView({ lands, onBack, onSave }: { lands: any[], onBack: () => vo
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowLandSelect(false)} className="fixed inset-0 bg-black/60 z-[60] backdrop-blur-sm" />
             <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="fixed bottom-0 left-0 right-0 bg-white dark:bg-stone-900 z-[70] rounded-t-[2rem] max-h-[85vh] flex flex-col shadow-2xl pb-[env(safe-area-inset-bottom)]">
-              <div className="p-6 flex justify-between items-center border-b border-stone-100 dark:border-stone-800">
-                <h3 className="text-xl font-bold text-stone-900 dark:text-stone-100">Select Field</h3>
+              <div className="p-4 flex justify-between items-center border-b border-stone-100 dark:border-stone-800">
+                <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100">Select Field</h3>
                 <button onClick={() => setShowLandSelect(false)} className="w-8 h-8 bg-stone-100 dark:bg-stone-800 rounded-full flex items-center justify-center text-stone-500"><X className="w-4 h-4" /></button>
               </div>
               <div className="p-4 flex flex-col gap-2 overflow-y-auto">
@@ -2222,11 +2231,11 @@ function AddCropView({ lands, onBack, onSave }: { lands: any[], onBack: () => vo
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowDatePicker(false)} className="fixed inset-0 bg-black/60 z-[60] backdrop-blur-sm" />
             <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="fixed bottom-0 left-0 right-0 bg-white dark:bg-stone-900 z-[70] rounded-t-[2rem] flex flex-col shadow-2xl pb-[env(safe-area-inset-bottom)]">
-              <div className="p-6 flex justify-between items-center border-b border-stone-100 dark:border-stone-800">
-                <h3 className="text-xl font-bold text-stone-900 dark:text-stone-100">Select Starting Date</h3>
+              <div className="p-4 flex justify-between items-center border-b border-stone-100 dark:border-stone-800">
+                <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100">Select Starting Date</h3>
                 <button onClick={() => setShowDatePicker(false)} className="w-8 h-8 bg-stone-100 dark:bg-stone-800 rounded-full flex items-center justify-center text-stone-500"><X className="w-4 h-4" /></button>
               </div>
-              <div className="p-6">
+              <div className="p-4">
                 <div className="flex justify-between items-center mb-6">
                   <button onClick={() => {
                     if (pickerMonth === 0) { setPickerMonth(11); setPickerYear(y => y - 1); }
@@ -2293,7 +2302,7 @@ function AddTaskView({ onBack, onSave }: { onBack: () => void, onSave: () => voi
         <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100">Add Task</h2>
         <div className="w-10"></div>
       </header>
-      <div className="p-6 flex-1 overflow-y-auto space-y-6">
+      <div className="p-4 flex-1 overflow-y-auto space-y-6">
         <div>
           <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Task Title</label>
           <input type="text" placeholder="e.g. Apply Fertilizer" className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none" />
@@ -2316,7 +2325,7 @@ function AddTaskView({ onBack, onSave }: { onBack: () => void, onSave: () => voi
           </div>
         </div>
       </div>
-      <div className="p-5 border-t border-stone-100 dark:border-stone-800">
+      <div className="p-3 border-t border-stone-100 dark:border-stone-800">
         <button onClick={onSave} className="w-full bg-emerald-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-600/20">
           Create Task
         </button>
@@ -2434,7 +2443,7 @@ function TaskCard({ task, onToggle }: { task: any, onToggle: () => void }) {
 
 function ToolCard({ title, desc, icon, color, onClick }: { title: string, desc: string, icon: React.ReactNode, color: string, onClick?: () => void }) {
   return (
-    <div onClick={onClick} className={`p-5 rounded-[1.5rem] border ${color} shadow-sm flex flex-col hover:-translate-y-1 transition-transform cursor-pointer`}>
+    <div onClick={onClick} className={`p-3 rounded-[1.5rem] border ${color} shadow-sm flex flex-col hover:-translate-y-1 transition-transform cursor-pointer`}>
       <div className="w-12 h-12 bg-white dark:bg-stone-800 rounded-2xl flex items-center justify-center mb-4 shadow-sm border border-stone-100 dark:border-stone-700/50">
         {icon}
       </div>
@@ -2478,25 +2487,25 @@ function CropProgressView({ crops, onBack, onDeleteCrop }: { crops: any[], onBac
         <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-300 transition-colors">
           <ArrowLeft className="w-6 h-6" />
         </button>
-        <h2 className="text-xl font-bold text-stone-900 dark:text-stone-100">Crop Progress</h2>
+        <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100">Crop Progress</h2>
         <div className="w-10"></div>
       </header>
 
-      <div className="p-5 md:p-8 flex-1 overflow-y-auto space-y-8 pb-32">
+      <div className="p-3 md:p-5 flex-1 overflow-y-auto space-y-8 pb-32">
         {crops.map((crop, index) => {
           const startDate = new Date(crop.start_date);
           const today = new Date();
           const diffTime = today.getTime() - startDate.getTime();
           const diffDays = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
 
-          const totalDays = crop.phases?.reduce((acc: number, p: any) => acc + p.days_count, 0) || 120;
+          const totalDays = crop.phases?.reduce((acc: number, p: any) => acc + Number(p.days_count), 0) || 120;
           const progressPct = Math.min(100, Math.round((diffDays / totalDays) * 100));
 
           let currentPhaseName = 'Sown';
           if (crop.phases && crop.phases.length > 0) {
             let accDays = 0;
             for (let i = 0; i < crop.phases.length; i++) {
-              accDays += crop.phases[i].days_count;
+              accDays += Number(crop.phases[i].days_count);
               if (diffDays <= accDays) {
                 currentPhaseName = crop.phases[i].name;
                 break;
@@ -2512,19 +2521,19 @@ function CropProgressView({ crops, onBack, onDeleteCrop }: { crops: any[], onBac
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
-              className="bg-white dark:bg-stone-900 rounded-[2.5rem] p-6 shadow-sm border border-stone-100 dark:border-stone-800 transition-colors relative overflow-hidden group max-w-4xl mx-auto w-full"
+              className="bg-white dark:bg-stone-900 rounded-[2.5rem] p-4 shadow-sm border border-stone-100 dark:border-stone-800 transition-colors relative overflow-hidden group max-w-4xl mx-auto w-full"
             >
               <div className={`absolute -right-20 -top-20 w-64 h-64 bg-gradient-to-br ${theme.bgGlow} rounded-full blur-3xl opacity-60 dark:opacity-20 transition-colors duration-500`}></div>
 
-              <div className="flex flex-col md:flex-row gap-8 relative z-10">
+              <div className="flex flex-col md:flex-row gap-5 relative z-10">
                 <div className="flex-1">
                   <div className="flex items-start justify-between mb-6">
                     <div className="flex items-center gap-4">
-                      <div className={`w-16 h-16 rounded-[1.5rem] flex items-center justify-center text-3xl border shadow-sm ${theme.bgPill} ${theme.borderIcon}`}>
+                      <div className={`w-16 h-16 rounded-[1.5rem] flex items-center justify-center text-lg border shadow-sm ${theme.bgPill} ${theme.borderIcon}`}>
                         {crop.emoji || '🌾'}
                       </div>
                       <div>
-                        <h3 className="text-2xl tracking-tight font-bold text-stone-900 dark:text-stone-100">{crop.type}</h3>
+                        <h3 className="text-lg tracking-tight font-bold text-stone-900 dark:text-stone-100">{crop.type}</h3>
                         <div className="flex items-center gap-1.5 mt-1 text-sm font-medium text-stone-500 dark:text-stone-400">
                           <MapPin className="w-4 h-4" /> {crop.name} {crop.land_area ? `• ${crop.land_area} Acres` : ''}
                         </div>
@@ -2536,11 +2545,11 @@ function CropProgressView({ crops, onBack, onDeleteCrop }: { crops: any[], onBac
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-stone-50 dark:bg-stone-800/50 p-5 rounded-2xl border border-stone-100 dark:border-stone-800">
+                    <div className="bg-stone-50 dark:bg-stone-800/50 p-3 rounded-2xl border border-stone-100 dark:border-stone-800">
                       <p className="text-[11px] uppercase tracking-wider font-bold text-stone-400 mb-2">Current Stage</p>
                       <p className={`font-bold text-lg ${theme.textAccent}`}>{currentPhaseName}</p>
                     </div>
-                    <div className="bg-stone-50 dark:bg-stone-800/50 p-5 rounded-2xl border border-stone-100 dark:border-stone-800">
+                    <div className="bg-stone-50 dark:bg-stone-800/50 p-3 rounded-2xl border border-stone-100 dark:border-stone-800">
                       <p className="text-[11px] uppercase tracking-wider font-bold text-stone-400 mb-2">Est. Harvest</p>
                       <p className="font-bold text-stone-900 dark:text-stone-100 text-lg">{totalDays - diffDays > 0 ? `${totalDays - diffDays} days left` : 'Ready'}</p>
                     </div>
@@ -2551,7 +2560,7 @@ function CropProgressView({ crops, onBack, onDeleteCrop }: { crops: any[], onBac
                   <div className="flex justify-between items-end mb-4">
                     <div>
                       <span className="block text-[11px] uppercase tracking-wider font-bold text-stone-400">Timeline</span>
-                      <span className="block text-2xl font-bold mt-1 text-stone-900 dark:text-stone-100">
+                      <span className="block text-lg font-bold mt-1 text-stone-900 dark:text-stone-100">
                         Day {diffDays} <span className="text-stone-400 text-base font-medium">/ {totalDays}</span>
                       </span>
                     </div>
@@ -2650,13 +2659,15 @@ function PricePredictionView({ onBack, crops }: { onBack: () => void, crops: any
     setNews([]);
 
     try {
-      const res = await fetch('/api/price-prediction', {
+      const data = await fetchApi('/ai/price-prediction', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        requireAuth: true,
         body: JSON.stringify({ crop: selectedCrop, month, year, location: 'Bangladesh', reportType })
       });
-      const data = await res.json();
-      if (res.ok) {
+
+      if (data.error) {
+        setError(data.error || 'Failed to generate prediction');
+      } else {
         const chartData = data.data.map((d: any) => ({
           name: d.period || d.week,
           [selectedCrop]: d.price
@@ -2665,8 +2676,6 @@ function PricePredictionView({ onBack, crops }: { onBack: () => void, crops: any
         setSummary(data.summary);
         setUnit(data.unit || '');
         setNews(data.news || []);
-      } else {
-        setError(data.error || 'Failed to generate prediction');
       }
     } catch (err: any) {
       setError(err.message || 'Network error');
@@ -2702,12 +2711,12 @@ function PricePredictionView({ onBack, crops }: { onBack: () => void, crops: any
         <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-300 transition-colors">
           <ArrowLeft className="w-6 h-6" />
         </button>
-        <h2 className="text-xl font-bold text-stone-900 dark:text-stone-100 flex items-center gap-2"><TrendingUp className="w-5 h-5 text-indigo-500" /> Price Predictor</h2>
+        <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100 flex items-center gap-2"><TrendingUp className="w-5 h-5 text-indigo-500" /> Price Predictor</h2>
         <div className="w-10"></div>
       </header>
 
-      <div className="p-5 md:p-8 flex-1 pb-32 max-w-4xl mx-auto w-full">
-        <div className="bg-white dark:bg-stone-900 rounded-[2rem] p-6 shadow-sm border border-stone-100 dark:border-stone-800 mb-6">
+      <div className="p-3 md:p-5 flex-1 pb-32 max-w-4xl mx-auto w-full">
+        <div className="bg-white dark:bg-stone-900 rounded-[2rem] p-4 shadow-sm border border-stone-100 dark:border-stone-800 mb-6">
           <h3 className="font-bold text-lg mb-4 text-stone-900 dark:text-stone-100">1. Choose a Crop</h3>
           <div className="flex flex-wrap gap-2 mb-6">
             {uniqueCropNames.map(name => (
@@ -2763,8 +2772,8 @@ function PricePredictionView({ onBack, crops }: { onBack: () => void, crops: any
         </div>
 
         {predictionData && (
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-stone-900 rounded-[2rem] p-6 shadow-sm border border-stone-100 dark:border-stone-800">
-            <h3 className="font-bold text-xl mb-4 text-stone-900 dark:text-stone-100">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-stone-900 rounded-[2rem] p-4 shadow-sm border border-stone-100 dark:border-stone-800">
+            <h3 className="font-bold text-lg mb-4 text-stone-900 dark:text-stone-100">
               Market Projection {unit && <span className="text-sm font-medium text-stone-500 ml-2">(BDT / {unit})</span>}
             </h3>
 

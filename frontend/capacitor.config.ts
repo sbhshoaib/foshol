@@ -4,10 +4,10 @@ const config: CapacitorConfig = {
   appId: 'com.foshol.app',
   appName: 'Foshol',
   webDir: 'out',
-  server: {
-    url: 'http://10.0.2.2:3000',
-    cleartext: true
-  }
+  // server: {
+  //   url: 'http://10.0.2.2:3000',
+  //   cleartext: true
+  // }
 };
 
 export default config;

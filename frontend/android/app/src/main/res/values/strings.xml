@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Foshol</string>
+    <string name="title_activity_main">Foshol</string>
+    <string name="package_name">com.foshol.app</string>
+    <string name="custom_url_scheme">com.foshol.app</string>
+</resources>

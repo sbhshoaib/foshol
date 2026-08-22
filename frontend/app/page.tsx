@@ -347,9 +347,9 @@ export default function FosholApp() {
 
         {/* Bottom Navigation Bar */}
         {(activeView === 'dashboard' || activeView === 'ai' || activeView === 'calendar' || activeView === 'profile') && (
-          <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-stone-900 border-t border-stone-100 dark:border-stone-800 flex justify-around items-end pb-6 pt-3 px-2 shadow-[0_-10px_40px_rgba(0,0,0,0.06)] z-50 rounded-t-3xl transition-colors duration-300">
+          <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-stone-900 border-t border-stone-100 dark:border-stone-800 flex justify-around items-end pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-3 px-2 shadow-[0_-10px_40px_rgba(0,0,0,0.06)] z-50 rounded-t-3xl transition-colors duration-300">
             <NavItem icon={Home} label="Home" isActive={activeView === 'dashboard'} onClick={() => setActiveView('dashboard')} />
-            <NavItem icon={ScanLine} label="AI Tools" isActive={activeView === 'ai' || activeView === 'chatbot' || activeView === 'price_prediction'} onClick={() => setActiveView('ai')} />
+            <NavItem icon={ScanLine} label="AI Tools" isActive={activeView === 'ai' || (activeView as string) === 'chatbot' || (activeView as string) === 'price_prediction' || (activeView as string) === 'fertilizer_ai'} onClick={() => setActiveView('ai')} />
             <NavItem icon={Calendar} label="Tasks" isActive={activeView === 'calendar'} onClick={() => setActiveView('calendar')} />
             <NavItem icon={User} label="Profile" isActive={activeView === 'profile'} onClick={() => setActiveView('profile')} />
           </nav>
@@ -404,7 +404,6 @@ export default function FosholApp() {
 // ==========================================
 // Views
 // ==========================================
-
 function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, onDeleteCrop }: { crops: any[], tasks: any[], lands: any[], toggleTask: (id: number) => void, onViewCropProgress: () => void, onDeleteCrop: (id: number) => void }) {
   const [weatherData, setWeatherData] = useState<{ temp: number | null, condition: string, location: string, rainChance3Hr: number | null, rainChanceToday: number | null, loading: boolean, error: string }>(() => {
     if (typeof window !== 'undefined') {
@@ -422,6 +421,8 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
     };
   });
   const [showTodayRain, setShowTodayRain] = useState(false);
+  const [weatherSummary, setWeatherSummary] = useState('');
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
 
   useEffect(() => {
     const fetchWeather = () => {
@@ -517,6 +518,53 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
     };
   }, []);
 
+  useEffect(() => {
+    if (weatherData.loading || weatherData.error || weatherData.temp === null) return;
+    
+    const cachedStr = localStorage.getItem('weather_ai_summary');
+    if (cachedStr) {
+      try {
+        const cached = JSON.parse(cachedStr);
+        // Valid for 30 minutes
+        if (Date.now() - cached.timestamp < 30 * 60 * 1000) {
+          setWeatherSummary(cached.summary);
+          return;
+        }
+      } catch (e) {}
+    }
+
+    const fetchSummary = async () => {
+      setIsGeneratingSummary(true);
+      try {
+        const res = await fetch('/api/weather/summary', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ weatherData, crops })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.summary) {
+            setWeatherSummary(data.summary);
+            localStorage.setItem('weather_ai_summary', JSON.stringify({
+              summary: data.summary,
+              timestamp: Date.now()
+            }));
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsGeneratingSummary(false);
+      }
+    };
+    
+    // Slight delay to not block main rendering
+    const timer = setTimeout(() => {
+      fetchSummary();
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [weatherData.loading, crops]);
+
   const todayStr = new Date().toISOString().split('T')[0];
   const pastTasks = tasks.filter(t => t.done);
   const todaysTasks = tasks.filter(t => !t.done && t.time <= todayStr);
@@ -582,6 +630,33 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
           </>
         )}
       </section>
+
+      {/* AI Weather Summary */}
+      {!weatherData.loading && !weatherData.error && (isGeneratingSummary || weatherSummary) && (
+        <section className="bg-white dark:bg-stone-800 rounded-[2rem] p-5 border border-stone-100 dark:border-stone-700 shadow-sm relative overflow-hidden -mt-2">
+           <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-2xl bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center flex-shrink-0 mt-0.5 border border-orange-100 dark:border-orange-900/50">
+                 <MessageSquare className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+              </div>
+              <div className="flex-1">
+                 <h4 className="text-[11px] font-bold uppercase tracking-widest text-stone-400 dark:text-stone-500 mb-1.5 flex items-center gap-2">
+                   AI Insight 
+                   {isGeneratingSummary && <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse"></span>}
+                 </h4>
+                 {isGeneratingSummary ? (
+                   <div className="space-y-2.5 w-full animate-pulse mt-3">
+                      <div className="h-3 bg-stone-100 dark:bg-stone-700 rounded-md w-full"></div>
+                      <div className="h-3 bg-stone-100 dark:bg-stone-700 rounded-md w-4/5"></div>
+                   </div>
+                 ) : (
+                   <p className="text-sm font-medium text-stone-700 dark:text-stone-300 leading-relaxed pr-2">
+                     {weatherSummary}
+                   </p>
+                 )}
+              </div>
+           </div>
+        </section>
+      )}
 
       {/* Crop Progress */}
       <section>
@@ -872,6 +947,7 @@ function FertilizerAIView({ onBack, crops, lands }: { onBack: () => void, crops:
   const [step, setStep] = useState<'SELECT_CROP' | 'GENERATING_QUESTIONS' | 'QUIZ' | 'GENERATING_RESULT' | 'RESULT'>('SELECT_CROP');
   const [selectedCrop, setSelectedCrop] = useState<any>(null);
   const [questions, setQuestions] = useState<any[]>([]);
+  const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [recommendation, setRecommendation] = useState<any>(null);
   const [apiError, setApiError] = useState('');
@@ -895,6 +971,7 @@ function FertilizerAIView({ onBack, crops, lands }: { onBack: () => void, crops:
       if (data.error) throw new Error(data.error);
 
       setQuestions(data.questions);
+      setCurrentQuestionIdx(0);
       setStep('QUIZ');
     } catch (err: any) {
       setApiError(err.message);
@@ -1015,56 +1092,90 @@ function FertilizerAIView({ onBack, crops, lands }: { onBack: () => void, crops:
         )}
 
         {step === 'QUIZ' && (
-           <div className="space-y-8 pb-12">
-             <div className="text-center mb-4">
+           <div className="space-y-6 pb-12 flex flex-col h-[60vh]">
+             <div className="text-center mb-2">
                 <span className="bg-cyan-100 dark:bg-cyan-900/50 text-cyan-800 dark:text-cyan-300 text-xs font-bold px-3 py-1.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1.5 shadow-sm">
                    <Droplets className="w-3.5 h-3.5" /> Diagnosis for {selectedCrop?.type}
                 </span>
+                <p className="text-sm text-stone-500 mt-4 font-bold tracking-widest uppercase">Question {currentQuestionIdx + 1} of {questions.length}</p>
              </div>
              
-             {questions.map((q, idx) => (
-               <motion.div 
-                 initial={{ opacity: 0, y: 20 }} 
-                 animate={{ opacity: 1, y: 0 }} 
-                 transition={{ delay: idx * 0.15 }}
-                 key={q.id} 
-                 className="bg-white dark:bg-stone-900 p-6 rounded-[2rem] border border-stone-100 dark:border-stone-800 shadow-sm relative overflow-hidden group"
-               >
-                 <div className="absolute top-0 left-0 w-1.5 h-full bg-cyan-100 dark:bg-cyan-900/30 group-hover:bg-cyan-500 transition-colors"></div>
-                 <h4 className="font-bold text-stone-900 dark:text-stone-100 text-lg mb-5 pl-2">{idx + 1}. {q.question}</h4>
-                 <div className="space-y-3 pl-2">
-                   {q.options.map((opt: string) => (
-                     <motion.button
-                       whileHover={{ scale: 1.01, x: 4 }}
-                       whileTap={{ scale: 0.98 }}
-                       key={opt}
-                       onClick={() => setAnswers({...answers, [q.id]: opt})}
-                       className={`w-full text-left p-4 rounded-2xl border transition-all duration-300 ${
-                         answers[q.id] === opt 
-                         ? 'border-cyan-500 bg-cyan-50/80 dark:bg-cyan-900/20 text-cyan-900 dark:text-cyan-100 shadow-md shadow-cyan-500/10' 
-                         : 'border-stone-200 dark:border-stone-700 bg-stone-50/50 dark:bg-stone-800/50 text-stone-700 dark:text-stone-300 hover:border-cyan-300 dark:hover:border-cyan-700 hover:bg-white dark:hover:bg-stone-800'
-                       }`}
+             <div className="flex-1 relative mt-2">
+               <AnimatePresence mode="wait">
+                 {questions.map((q, idx) => (
+                   idx === currentQuestionIdx && (
+                     <motion.div 
+                       key={q.id}
+                       initial={{ opacity: 0, x: 40 }} 
+                       animate={{ opacity: 1, x: 0 }} 
+                       exit={{ opacity: 0, x: -40 }}
+                       transition={{ duration: 0.3, ease: "easeInOut" }}
+                       className="bg-white dark:bg-stone-900 p-6 md:p-8 rounded-[2rem] border border-stone-100 dark:border-stone-800 shadow-sm relative overflow-hidden group w-full"
                      >
-                       <div className="flex items-center gap-3">
-                           <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${answers[q.id] === opt ? 'border-cyan-500 bg-cyan-500' : 'border-stone-300 dark:border-stone-600'}`}>
-                               <AnimatePresence>
-                                  {answers[q.id] === opt && <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} className="w-2 h-2 bg-white rounded-full"></motion.div>}
-                               </AnimatePresence>
-                           </div>
-                           <span className="font-medium text-sm md:text-base">{opt}</span>
+                       <div className="absolute top-0 left-0 w-1.5 h-full bg-cyan-100 dark:bg-cyan-900/30 group-hover:bg-cyan-500 transition-colors"></div>
+                       <h4 className="font-bold text-stone-900 dark:text-stone-100 text-xl md:text-2xl mb-8 pl-2 leading-tight">{q.question}</h4>
+                       <div className="space-y-4 pl-2">
+                         {q.options.map((opt: string) => (
+                           <motion.button
+                             whileHover={{ scale: 1.01, x: 4 }}
+                             whileTap={{ scale: 0.98 }}
+                             key={opt}
+                             onClick={() => {
+                               setAnswers({...answers, [q.id]: opt});
+                               if (currentQuestionIdx < questions.length - 1) {
+                                  setTimeout(() => setCurrentQuestionIdx(prev => prev + 1), 350);
+                               }
+                             }}
+                             className={`w-full text-left p-5 rounded-2xl border transition-all duration-300 ${
+                               answers[q.id] === opt 
+                               ? 'border-cyan-500 bg-cyan-50/80 dark:bg-cyan-900/30 text-cyan-900 dark:text-cyan-100 shadow-md shadow-cyan-500/10' 
+                               : 'border-stone-200 dark:border-stone-700 bg-stone-50/50 dark:bg-stone-800/50 text-stone-700 dark:text-stone-300 hover:border-cyan-300 dark:hover:border-cyan-700 hover:bg-white dark:hover:bg-stone-800'
+                             }`}
+                           >
+                             <div className="flex items-center gap-4">
+                                 <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${answers[q.id] === opt ? 'border-cyan-500 bg-cyan-500' : 'border-stone-300 dark:border-stone-600'}`}>
+                                     <AnimatePresence>
+                                        {answers[q.id] === opt && <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} className="w-2.5 h-2.5 bg-white rounded-full"></motion.div>}
+                                     </AnimatePresence>
+                                 </div>
+                                 <span className="font-medium text-base md:text-lg">{opt}</span>
+                             </div>
+                           </motion.button>
+                         ))}
                        </div>
-                     </motion.button>
-                   ))}
-                 </div>
-               </motion.div>
-             ))}
+                     </motion.div>
+                   )
+                 ))}
+               </AnimatePresence>
+             </div>
 
-             <button 
-               onClick={handleSubmitQuiz} 
-               className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-5 rounded-3xl shadow-lg shadow-cyan-600/20 transition-all flex items-center justify-center gap-2 text-lg active:scale-[0.98]"
-             >
-               Diagnose Health
-             </button>
+             <div className="flex items-center gap-3 pt-4">
+               {currentQuestionIdx > 0 && (
+                 <button 
+                   onClick={() => setCurrentQuestionIdx(prev => prev - 1)}
+                   className="p-5 rounded-3xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-700 transition-colors shadow-sm"
+                 >
+                   <ArrowLeft className="w-6 h-6" />
+                 </button>
+               )}
+               {currentQuestionIdx === questions.length - 1 ? (
+                 <button 
+                   onClick={handleSubmitQuiz} 
+                   disabled={Object.keys(answers).length < questions.length}
+                   className="flex-1 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:hover:bg-cyan-600 text-white font-bold py-5 rounded-3xl shadow-lg shadow-cyan-600/20 transition-all flex items-center justify-center gap-2 text-lg active:scale-[0.98]"
+                 >
+                   Diagnose Health
+                 </button>
+               ) : (
+                 <button 
+                   onClick={() => setCurrentQuestionIdx(prev => prev + 1)}
+                   disabled={!answers[questions[currentQuestionIdx]?.id]}
+                   className="flex-1 bg-stone-900 dark:bg-white hover:bg-stone-800 dark:hover:bg-stone-100 disabled:opacity-50 text-white dark:text-stone-900 font-bold py-5 rounded-3xl shadow-lg transition-all flex items-center justify-center gap-2 text-lg active:scale-[0.98]"
+                 >
+                   Next Question <ArrowRight className="w-5 h-5" />
+                 </button>
+               )}
+             </div>
            </div>
         )}
 
@@ -1684,14 +1795,19 @@ function AddCropView({ lands, onBack, onSave }: { lands: any[], onBack: () => vo
           <div>
             <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Crop Type</label>
             <div className="flex flex-col gap-3">
-              <select value={cropType} onChange={e => { setCropType(e.target.value); setApiError(''); }} className="appearance-auto w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50 block">
-                <option>Rice</option>
-                <option>Wheat</option>
-                <option>Corn</option>
-                <option>Tomato</option>
-                <option>Potato</option>
-                <option>Other</option>
-              </select>
+              <div className="relative">
+                <select value={cropType} onChange={e => { setCropType(e.target.value); setApiError(''); }} className="appearance-none w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-4 text-stone-900 dark:text-stone-100 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/50 block shadow-sm transition-all">
+                  <option>Rice</option>
+                  <option>Wheat</option>
+                  <option>Corn</option>
+                  <option>Tomato</option>
+                  <option>Potato</option>
+                  <option>Other</option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-stone-400">
+                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                </div>
+              </div>
               {cropType === 'Other' && (
                 <motion.input 
                   initial={{ opacity: 0, height: 0 }} 
@@ -1700,7 +1816,7 @@ function AddCropView({ lands, onBack, onSave }: { lands: any[], onBack: () => vo
                   value={customCropType} 
                   onChange={e => { setCustomCropType(e.target.value); setApiError(''); }} 
                   placeholder="Enter crop name (e.g. Jute, Watermelon)" 
-                  className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50 block" 
+                  className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-4 text-stone-900 dark:text-stone-100 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/50 block shadow-sm transition-all" 
                 />
               )}
             </div>
@@ -1710,36 +1826,48 @@ function AddCropView({ lands, onBack, onSave }: { lands: any[], onBack: () => vo
                   {apiError}
               </motion.div>
           )}
-          <div>
-            <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Select Field</label>
-            <select value={selectedLandId} onChange={e => setSelectedLandId(e.target.value)} className="appearance-auto w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50 block mb-4">
-              {lands?.length > 0 && lands.map((l:any) => (
-                <option key={l.id} value={l.id}>{l.name} ({l.area} acres)</option>
-              ))}
-              <option value="new">+ Add New Field</option>
-            </select>
-          </div>
+          {lands?.length > 0 && (
+            <div>
+              <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Select Field</label>
+              <div className="relative mb-4">
+                <select value={selectedLandId} onChange={e => setSelectedLandId(e.target.value)} className="appearance-none w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-4 text-stone-900 dark:text-stone-100 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/50 block shadow-sm transition-all">
+                  {lands.map((l:any) => (
+                    <option key={l.id} value={l.id}>{l.name} ({l.area} acres)</option>
+                  ))}
+                  <option value="new">+ Add New Field</option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-stone-400">
+                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                </div>
+              </div>
+            </div>
+          )}
           
-          {selectedLandId === 'new' && (
+          {(!lands || lands.length === 0 || selectedLandId === 'new') && (
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">New Field Name (Optional)</label>
-                <input type="text" value={fieldName} onChange={e => setFieldName(e.target.value)} placeholder="e.g. North Plot" className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50 block" />
+                <input type="text" value={fieldName} onChange={e => setFieldName(e.target.value)} placeholder="e.g. North Plot" className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-4 text-stone-900 dark:text-stone-100 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/50 block shadow-sm transition-all" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Land Area in Acres (Optional)</label>
-                <input type="number" step="0.1" min="0" value={landArea} onChange={e => setLandArea(e.target.value)} placeholder="e.g. 2.5" className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50 block" />
+                <input type="number" step="0.1" min="0" value={landArea} onChange={e => setLandArea(e.target.value)} placeholder="e.g. 2.5" className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-4 text-stone-900 dark:text-stone-100 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/50 block shadow-sm transition-all" />
               </div>
             </motion.div>
           )}
           <div>
             <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Starting Date</label>
-            <input 
-              type="date" 
-              value={startDate} 
-              onChange={e => setStartDate(e.target.value)} 
-              className="appearance-auto w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50 block" 
-            />
+            <div className="relative">
+              <input 
+                type="date" 
+                value={startDate} 
+                onChange={e => setStartDate(e.target.value)} 
+                className="appearance-none w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-4 text-stone-900 dark:text-stone-100 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/50 block shadow-sm transition-all [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer" 
+              />
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-stone-400">
+                 <Calendar className="h-5 w-5" />
+              </div>
+            </div>
           </div>
         </div>
       ) : (

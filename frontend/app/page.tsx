@@ -422,7 +422,20 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
     };
   });
   const [showTodayRain, setShowTodayRain] = useState(false);
-  const [weatherSummary, setWeatherSummary] = useState('');
+  const [weatherSummary, setWeatherSummary] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const cachedStr = localStorage.getItem('weather_ai_summary');
+      if (cachedStr) {
+        try {
+          const cached = JSON.parse(cachedStr);
+          if (Date.now() - cached.timestamp < 30 * 60 * 1000) {
+            return cached.summary;
+          }
+        } catch(e) {}
+      }
+    }
+    return '';
+  });
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
 
   useEffect(() => {
@@ -522,16 +535,9 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
   useEffect(() => {
     if (weatherData.loading || weatherData.error || weatherData.temp === null) return;
     
-    const cachedStr = localStorage.getItem('weather_ai_summary');
-    if (cachedStr) {
-      try {
-        const cached = JSON.parse(cachedStr);
-        // Valid for 30 minutes
-        if (Date.now() - cached.timestamp < 30 * 60 * 1000) {
-          setWeatherSummary(cached.summary);
-          return;
-        }
-      } catch (e) {}
+    // If we already have a valid summary (from initial cache load), don't refetch
+    if (weatherSummary) {
+        return;
     }
 
     const fetchSummary = async () => {

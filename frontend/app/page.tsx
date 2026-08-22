@@ -534,6 +534,7 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
 
   useEffect(() => {
     if (weatherData.loading || weatherData.error || weatherData.temp === null) return;
+    if (!crops || crops.length === 0) return;
 
     // If we already have a valid summary (from initial cache load), don't refetch
     if (weatherSummary) {
@@ -639,7 +640,7 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
       </section>
 
       {/* AI Weather Summary */}
-      {!weatherData.loading && !weatherData.error && (isGeneratingSummary || weatherSummary) && (
+      {!weatherData.loading && !weatherData.error && crops && crops.length > 0 && (isGeneratingSummary || weatherSummary) && (
         <section className="bg-white dark:bg-stone-800 rounded-[2rem] p-5 border border-stone-100 dark:border-stone-700 shadow-sm relative overflow-hidden -mt-2">
           <div className="flex items-start gap-4">
             <div className="w-10 h-10 rounded-2xl bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center flex-shrink-0 mt-0.5 border border-orange-100 dark:border-orange-900/50">
@@ -652,8 +653,7 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
               </h4>
               {isGeneratingSummary ? (
                 <div className="space-y-2.5 w-full animate-pulse mt-3">
-                  <div className="h-3 bg-stone-100 dark:bg-stone-700 rounded-md w-full"></div>
-                  <div className="h-3 bg-stone-100 dark:bg-stone-700 rounded-md w-4/5"></div>
+                  <p className="text-sm font-medium text-stone-500 dark:text-stone-400">AI summary generating...</p>
                 </div>
               ) : (
                 <p className="text-sm font-medium text-stone-700 dark:text-stone-300 leading-relaxed pr-2">

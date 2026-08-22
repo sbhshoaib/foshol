@@ -1749,7 +1749,7 @@ function PricePredictionView({ onBack, crops }: { onBack: () => void, crops: any
 
       <div className="p-5 md:p-8 flex-1 pb-32 max-w-4xl mx-auto w-full">
         <div className="bg-white dark:bg-stone-900 rounded-[2rem] p-6 shadow-sm border border-stone-100 dark:border-stone-800 mb-6">
-          <h3 className="font-bold text-lg mb-4 text-stone-900 dark:text-stone-100">1. Select Crop</h3>
+          <h3 className="font-bold text-lg mb-4 text-stone-900 dark:text-stone-100">1. Choose a Crop</h3>
           <div className="flex flex-wrap gap-2 mb-6">
             {uniqueCropNames.map(name => (
               <button
@@ -1762,13 +1762,13 @@ function PricePredictionView({ onBack, crops }: { onBack: () => void, crops: any
             ))}
           </div>
 
-          <h3 className="font-bold text-lg mb-4 text-stone-900 dark:text-stone-100">2. Select Report Type</h3>
+          <h3 className="font-bold text-lg mb-4 text-stone-900 dark:text-stone-100">2. Report Format</h3>
           <div className="flex gap-2 mb-6 bg-stone-100 dark:bg-stone-800 p-1.5 rounded-2xl">
             <button onClick={() => setReportType('monthly')} className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${reportType === 'monthly' ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 shadow-sm' : 'text-stone-500 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-700/50'}`}>Monthly Report</button>
             <button onClick={() => setReportType('yearly')} className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${reportType === 'yearly' ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 shadow-sm' : 'text-stone-500 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-700/50'}`}>Yearly Report</button>
           </div>
 
-          <h3 className="font-bold text-lg mb-4 text-stone-900 dark:text-stone-100">3. Select Target Date</h3>
+          <h3 className="font-bold text-lg mb-4 text-stone-900 dark:text-stone-100">3. Target Date</h3>
           <div className="flex gap-4 mb-6">
             {reportType === 'monthly' && (
               <select value={month} onChange={(e) => setMonth(parseInt(e.target.value))} className="appearance-auto flex-1 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-indigo-500 outline-none">

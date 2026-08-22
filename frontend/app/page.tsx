@@ -1377,7 +1377,27 @@ function CalendarView({ tasks, toggleTask }: { tasks: any[], toggleTask: (id: nu
                 animate={{ opacity: 1, x: 0 }}
                 exit={(dir: number) => ({ opacity: 0, x: -dir * 50 })}
                 transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-                className="flex justify-between absolute inset-0 w-full"
+                className="flex justify-between absolute inset-0 w-full cursor-grab active:cursor-grabbing"
+                drag="x"
+                dragConstraints={{ left: 0, right: 0 }}
+                dragElastic={0.2}
+                onDragEnd={(e, { offset, velocity }) => {
+                  if (offset.x < -40 || velocity.x < -200) {
+                    setSlideDir(1);
+                    const next = new Date(selectedDate);
+                    next.setDate(next.getDate() + 1);
+                    setSelectedDate(next);
+                    setCurrentMonth(next.getMonth());
+                    setCurrentYear(next.getFullYear());
+                  } else if (offset.x > 40 || velocity.x > 200) {
+                    setSlideDir(-1);
+                    const prev = new Date(selectedDate);
+                    prev.setDate(prev.getDate() - 1);
+                    setSelectedDate(prev);
+                    setCurrentMonth(prev.getMonth());
+                    setCurrentYear(prev.getFullYear());
+                  }
+                }}
               >
                 {generateWeekDays().map((d, i) => {
                    const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
@@ -1417,7 +1437,27 @@ function CalendarView({ tasks, toggleTask }: { tasks: any[], toggleTask: (id: nu
                 animate={{ opacity: 1, x: 0 }}
                 exit={(dir: number) => ({ opacity: 0, x: -dir * 50 })}
                 transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                className="space-y-6"
+                className="space-y-6 cursor-grab active:cursor-grabbing"
+                drag="x"
+                dragConstraints={{ left: 0, right: 0 }}
+                dragElastic={0.2}
+                onDragEnd={(e, { offset, velocity }) => {
+                  if (offset.x < -40 || velocity.x < -200) {
+                    setSlideDir(1);
+                    const next = new Date(selectedDate);
+                    next.setDate(next.getDate() + 1);
+                    setSelectedDate(next);
+                    setCurrentMonth(next.getMonth());
+                    setCurrentYear(next.getFullYear());
+                  } else if (offset.x > 40 || velocity.x > 200) {
+                    setSlideDir(-1);
+                    const prev = new Date(selectedDate);
+                    prev.setDate(prev.getDate() - 1);
+                    setSelectedDate(prev);
+                    setCurrentMonth(prev.getMonth());
+                    setCurrentYear(prev.getFullYear());
+                  }
+                }}
               >
                 {(() => {
                   const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;

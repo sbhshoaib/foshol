@@ -422,13 +422,14 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
     };
   });
   const [showTodayRain, setShowTodayRain] = useState(false);
+  const cropsHash = crops ? crops.map((c: any) => c.id).sort().join(',') : '';
   const [weatherSummary, setWeatherSummary] = useState(() => {
     if (typeof window !== 'undefined') {
       const cachedStr = localStorage.getItem('weather_ai_summary');
       if (cachedStr) {
         try {
           const cached = JSON.parse(cachedStr);
-          if (Date.now() - cached.timestamp < 30 * 60 * 1000) {
+          if (Date.now() - cached.timestamp < 30 * 60 * 1000 && cached.cropsHash === cropsHash) {
             return cached.summary;
           }
         } catch (e) { }
@@ -555,7 +556,8 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
             setWeatherSummary(data.summary);
             localStorage.setItem('weather_ai_summary', JSON.stringify({
               summary: data.summary,
-              timestamp: Date.now()
+              timestamp: Date.now(),
+              cropsHash: cropsHash
             }));
           }
         }

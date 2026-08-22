@@ -18,6 +18,19 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     Route::post('/logout', [AuthController::class, 'logout']);
 
+    Route::put('/user/device', function (Request $request) {
+        $request->validate([
+            'device_token' => 'nullable|string',
+            'lat' => 'nullable|numeric',
+            'lon' => 'nullable|numeric',
+        ]);
+        
+        $user = $request->user();
+        $user->update($request->only(['device_token', 'lat', 'lon']));
+        
+        return response()->json(['message' => 'Device info updated']);
+    });
+
     // Crops
     Route::get('/crops', [CropController::class, 'index']);
     Route::post('/crops', [CropController::class, 'store']);

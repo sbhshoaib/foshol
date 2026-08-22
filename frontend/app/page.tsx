@@ -21,6 +21,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { fetchApi } from '../lib/api';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
+import { PushNotifications } from '@capacitor/push-notifications';
 
 // Custom Tab Types
 type ViewType = 'dashboard' | 'ai' | 'chatbot' | 'fertilizer_ai' | 'calendar' | 'profile' | 'edit_profile' | 'add_crop' | 'add_task' | 'crop_progress' | 'price_prediction';
@@ -168,11 +169,35 @@ export default function FosholApp() {
   useEffect(() => {
     // Load initial theme from localStorage on mount
     const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'dark') {
+    if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
       setIsDarkMode(true);
-    } else if (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      setIsDarkMode(true);
+      document.documentElement.classList.add('dark');
     }
+
+    const setupPushNotifications = async () => {
+      try {
+        const { Capacitor } = await import('@capacitor/core');
+        if (Capacitor.isNativePlatform()) {
+          const permStatus = await PushNotifications.requestPermissions();
+          if (permStatus.receive === 'granted') {
+            await PushNotifications.register();
+          }
+
+          PushNotifications.addListener('registration', (token) => {
+            localStorage.setItem('fcm_token', token.value);
+          });
+
+          PushNotifications.addListener('pushNotificationReceived', (notification) => {
+            setProfileAlert(`${notification.title}: ${notification.body}`);
+            setTimeout(() => setProfileAlert(''), 5000);
+          });
+        }
+      } catch (e) {
+        console.error('Push Notifications setup failed', e);
+      }
+    };
+    
+    setupPushNotifications();
     setIsDarkModeLoaded(true);
   }, []);
 
@@ -505,6 +530,21 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
 
               setWeatherData(newData);
               localStorage.setItem('weather_cache', JSON.stringify(newData));
+
+              // Sync device token and location with Laravel backend
+              try {
+                const token = localStorage.getItem('fcm_token');
+                if (token) {
+                  const { fetchApi } = await import('./api');
+                  await fetchApi('/user/device', {
+                    method: 'PUT',
+                    requireAuth: true,
+                    body: JSON.stringify({ device_token: token, lat, lon })
+                  });
+                }
+              } catch (e) {
+                console.error('Failed to sync device info', e);
+              }
             } catch (err) {
               if (!navigator.onLine) {
                 setWeatherData(prev => ({ ...prev, temp: null, loading: false, error: 'Internet needed' }));

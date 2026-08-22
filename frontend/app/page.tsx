@@ -109,6 +109,7 @@ export default function FosholApp() {
             title: t.title,
             time: t.date,
             tag: c.name,
+            cropType: c.type,
             done: t.is_completed,
             type: t.type
           }));
@@ -2063,7 +2064,10 @@ function TaskCard({ task, onToggle }: { task: any, onToggle: () => void }) {
             );
           })()}
           <span className="w-1 h-1 bg-stone-300 dark:bg-stone-600 rounded-full"></span>
-          <span className="text-[10px] font-bold bg-stone-100 dark:bg-stone-700 text-stone-600 dark:text-stone-300 px-2 py-0.5 rounded-md uppercase tracking-wider">{task.tag}</span>
+          <div className="flex items-center gap-1.5 overflow-hidden">
+            <span className="text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-md uppercase tracking-wider whitespace-nowrap">{task.cropType}</span>
+            <span className="text-[10px] font-bold bg-stone-100 dark:bg-stone-700 text-stone-600 dark:text-stone-300 px-2 py-0.5 rounded-md uppercase tracking-wider whitespace-nowrap truncate max-w-[120px]">{task.tag}</span>
+          </div>
         </div>
       </div>
       <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors duration-300 ${isDone ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-stone-200 dark:border-stone-600'}`}>

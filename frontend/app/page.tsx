@@ -995,15 +995,21 @@ function FertilizerAIView({ onBack, crops, lands }: { onBack: () => void, crops:
         )}
 
         {(step === 'GENERATING_QUESTIONS' || step === 'GENERATING_RESULT') && (
-           <div className="flex-1 flex flex-col items-center justify-center text-center">
-             <div className="w-20 h-20 border-4 border-cyan-100 border-t-cyan-600 rounded-full animate-spin mb-6 drop-shadow-md"></div>
-             <h3 className="text-2xl font-bold text-stone-900 dark:text-stone-100 mb-2">
-               {step === 'GENERATING_QUESTIONS' ? 'Analyzing Crop Context...' : 'Generating Prescription...'}
+           <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
+             <motion.div 
+                animate={{ scale: [1, 1.1, 1], opacity: [0.5, 1, 0.5] }} 
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                className="w-24 h-24 bg-gradient-to-tr from-cyan-100 to-emerald-100 dark:from-cyan-900/30 dark:to-emerald-900/30 rounded-full flex items-center justify-center mb-8 shadow-inner"
+             >
+                <Droplets className="w-10 h-10 text-cyan-500 animate-pulse" />
+             </motion.div>
+             <h3 className="text-2xl font-bold text-stone-900 dark:text-stone-100 mb-3 tracking-tight">
+               {step === 'GENERATING_QUESTIONS' ? 'Analyzing Crop Context...' : 'Formulating Recommendations...'}
              </h3>
-             <p className="text-stone-500 dark:text-stone-400 text-sm max-w-xs mx-auto">
+             <p className="text-stone-500 dark:text-stone-400 text-sm max-w-sm mx-auto leading-relaxed">
                {step === 'GENERATING_QUESTIONS' 
-                 ? 'AI is preparing diagnostic questions specific to your crop and land.' 
-                 : 'AI is formulating the perfect fertilizer recommendations based on your answers.'}
+                 ? 'Our AI is carefully reviewing your crop profile to prepare the most relevant diagnostic questions.' 
+                 : 'Analyzing your responses to calculate the optimal nutrient requirements for your field.'}
              </p>
            </div>
         )}
@@ -1017,30 +1023,40 @@ function FertilizerAIView({ onBack, crops, lands }: { onBack: () => void, crops:
              </div>
              
              {questions.map((q, idx) => (
-               <div key={q.id} className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm relative overflow-hidden">
-                 <div className="absolute top-0 left-0 w-1 h-full bg-cyan-500"></div>
-                 <h4 className="font-bold text-stone-900 dark:text-stone-100 text-lg mb-4">{idx + 1}. {q.question}</h4>
-                 <div className="space-y-3">
+               <motion.div 
+                 initial={{ opacity: 0, y: 20 }} 
+                 animate={{ opacity: 1, y: 0 }} 
+                 transition={{ delay: idx * 0.15 }}
+                 key={q.id} 
+                 className="bg-white dark:bg-stone-900 p-6 rounded-[2rem] border border-stone-100 dark:border-stone-800 shadow-sm relative overflow-hidden group"
+               >
+                 <div className="absolute top-0 left-0 w-1.5 h-full bg-cyan-100 dark:bg-cyan-900/30 group-hover:bg-cyan-500 transition-colors"></div>
+                 <h4 className="font-bold text-stone-900 dark:text-stone-100 text-lg mb-5 pl-2">{idx + 1}. {q.question}</h4>
+                 <div className="space-y-3 pl-2">
                    {q.options.map((opt: string) => (
-                     <button
+                     <motion.button
+                       whileHover={{ scale: 1.01, x: 4 }}
+                       whileTap={{ scale: 0.98 }}
                        key={opt}
                        onClick={() => setAnswers({...answers, [q.id]: opt})}
-                       className={`w-full text-left p-4 rounded-2xl border transition-all ${
+                       className={`w-full text-left p-4 rounded-2xl border transition-all duration-300 ${
                          answers[q.id] === opt 
-                         ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-900/20 text-cyan-900 dark:text-cyan-100 shadow-md shadow-cyan-500/10' 
-                         : 'border-stone-200 dark:border-stone-700 bg-transparent text-stone-700 dark:text-stone-300 hover:border-cyan-300 dark:hover:border-cyan-700 hover:bg-stone-50 dark:hover:bg-stone-800'
+                         ? 'border-cyan-500 bg-cyan-50/80 dark:bg-cyan-900/20 text-cyan-900 dark:text-cyan-100 shadow-md shadow-cyan-500/10' 
+                         : 'border-stone-200 dark:border-stone-700 bg-stone-50/50 dark:bg-stone-800/50 text-stone-700 dark:text-stone-300 hover:border-cyan-300 dark:hover:border-cyan-700 hover:bg-white dark:hover:bg-stone-800'
                        }`}
                      >
                        <div className="flex items-center gap-3">
-                           <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${answers[q.id] === opt ? 'border-cyan-500 bg-cyan-500' : 'border-stone-300 dark:border-stone-600'}`}>
-                               {answers[q.id] === opt && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                           <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${answers[q.id] === opt ? 'border-cyan-500 bg-cyan-500' : 'border-stone-300 dark:border-stone-600'}`}>
+                               <AnimatePresence>
+                                  {answers[q.id] === opt && <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} className="w-2 h-2 bg-white rounded-full"></motion.div>}
+                               </AnimatePresence>
                            </div>
-                           <span className="font-medium">{opt}</span>
+                           <span className="font-medium text-sm md:text-base">{opt}</span>
                        </div>
-                     </button>
+                     </motion.button>
                    ))}
                  </div>
-               </div>
+               </motion.div>
              ))}
 
              <button 
@@ -1072,7 +1088,7 @@ function FertilizerAIView({ onBack, crops, lands }: { onBack: () => void, crops:
                 <div className="space-y-6">
                     <div className="bg-gradient-to-br from-cyan-600 to-indigo-600 rounded-[2.5rem] p-8 text-white shadow-xl relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
-                        <h3 className="text-3xl font-bold mb-2 tracking-tight">Prescription</h3>
+                        <h3 className="text-3xl font-bold mb-2 tracking-tight">Recommendations</h3>
                         <p className="text-cyan-50 text-sm font-medium opacity-90">AI detected nutrient deficiencies. Apply the following for optimal yield.</p>
                     </div>
 

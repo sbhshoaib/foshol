@@ -1560,19 +1560,17 @@ function ProfileView({ lands, crops, onEdit, onSignOut, fetchDashboardData }: { 
   const confirmDeleteLand = async () => {
     if (!landToDelete) return;
     try {
-      const { fetchApi } = await import('./api');
       await fetchApi(`/lands/${landToDelete.id}`, { method: 'DELETE', requireAuth: true });
       fetchDashboardData();
       setLandToDelete(null);
-    } catch (e) {
-      alert('Failed to delete land');
+    } catch (e: any) {
+      alert('Failed to delete land: ' + e.message);
     }
   };
 
   const handleSaveEditLand = async () => {
     if (!landToEdit || !editLandName || !editLandArea) return;
     try {
-      const { fetchApi } = await import('./api');
       await fetchApi(`/lands/${landToEdit.id}`, { 
         method: 'PUT', 
         requireAuth: true,
@@ -1580,8 +1578,8 @@ function ProfileView({ lands, crops, onEdit, onSignOut, fetchDashboardData }: { 
       });
       fetchDashboardData();
       setLandToEdit(null);
-    } catch (e) {
-      alert('Failed to edit land');
+    } catch (e: any) {
+      alert('Failed to edit land: ' + e.message);
     }
   };
 

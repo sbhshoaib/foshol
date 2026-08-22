@@ -1639,6 +1639,18 @@ function AddCropView({ lands, onBack, onSave }: { lands: any[], onBack: () => vo
   const [fieldName, setFieldName] = useState('');
   const [startDate, setStartDate] = useState('');
   const [landArea, setLandArea] = useState('');
+
+  // Modals for Custom Native Inputs
+  const [showCropSelect, setShowCropSelect] = useState(false);
+  const [showLandSelect, setShowLandSelect] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [pickerMonth, setPickerMonth] = useState(new Date().getMonth());
+  const [pickerYear, setPickerYear] = useState(new Date().getFullYear());
+
+  const daysInPickerMonth = new Date(pickerYear, pickerMonth + 1, 0).getDate();
+  const firstDayOfPickerMonth = new Date(pickerYear, pickerMonth, 1).getDay();
+  const pickerDays = Array.from({ length: firstDayOfPickerMonth }, () => null).concat(Array.from({ length: daysInPickerMonth }, (_, i) => i + 1));
+
   const [isGenerating, setIsGenerating] = useState(false);
   const [reviewData, setReviewData] = useState<any>(null);
   const [generationTimeMs, setGenerationTimeMs] = useState(0);
@@ -1812,16 +1824,12 @@ function AddCropView({ lands, onBack, onSave }: { lands: any[], onBack: () => vo
           <div>
             <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Crop Type</label>
             <div className="flex flex-col gap-3">
-              <div className="relative">
-                <select value={cropType} onChange={e => { setCropType(e.target.value); setApiError(''); }} className="appearance-none w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-4 text-stone-900 dark:text-stone-100 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/50 block shadow-sm transition-all">
-                  <option>Rice</option>
-                  <option>Wheat</option>
-                  <option>Corn</option>
-                  <option>Tomato</option>
-                  <option>Potato</option>
-                  <option>Other</option>
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-stone-400">
+              <div 
+                onClick={() => setShowCropSelect(true)}
+                className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-4 text-stone-900 dark:text-stone-100 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/50 flex justify-between items-center cursor-pointer shadow-sm transition-all"
+              >
+                <span>{cropType}</span>
+                <div className="text-stone-400">
                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
                 </div>
               </div>
@@ -1846,14 +1854,12 @@ function AddCropView({ lands, onBack, onSave }: { lands: any[], onBack: () => vo
           {lands?.length > 0 && (
             <div>
               <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Select Field</label>
-              <div className="relative mb-4">
-                <select value={selectedLandId} onChange={e => setSelectedLandId(e.target.value)} className="appearance-none w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-4 text-stone-900 dark:text-stone-100 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/50 block shadow-sm transition-all">
-                  {lands.map((l:any) => (
-                    <option key={l.id} value={l.id}>{l.name} ({l.area} acres)</option>
-                  ))}
-                  <option value="new">+ Add New Field</option>
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-stone-400">
+              <div 
+                onClick={() => setShowLandSelect(true)}
+                className="mb-4 w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-4 text-stone-900 dark:text-stone-100 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/50 flex justify-between items-center cursor-pointer shadow-sm transition-all"
+              >
+                <span>{selectedLandId === 'new' ? '+ Add New Field' : lands.find((l:any) => l.id == selectedLandId)?.name + ' (' + lands.find((l:any) => l.id == selectedLandId)?.area + ' acres)'}</span>
+                <div className="text-stone-400">
                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
                 </div>
               </div>
@@ -1874,14 +1880,12 @@ function AddCropView({ lands, onBack, onSave }: { lands: any[], onBack: () => vo
           )}
           <div>
             <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Starting Date</label>
-            <div className="relative">
-              <input 
-                type="date" 
-                value={startDate} 
-                onChange={e => setStartDate(e.target.value)} 
-                className="appearance-none w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-4 text-stone-900 dark:text-stone-100 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/50 block shadow-sm transition-all [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer" 
-              />
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-stone-400">
+            <div 
+              onClick={() => setShowDatePicker(true)}
+              className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-4 text-stone-900 dark:text-stone-100 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/50 flex justify-between items-center cursor-pointer shadow-sm transition-all"
+            >
+              <span>{startDate ? new Date(startDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'Select Date'}</span>
+              <div className="text-stone-400">
                  <Calendar className="h-5 w-5" />
               </div>
             </div>
@@ -1930,6 +1934,111 @@ function AddCropView({ lands, onBack, onSave }: { lands: any[], onBack: () => vo
           </button>
         )}
       </div>
+
+      {/* Modals for Custom Inputs */}
+      <AnimatePresence>
+        {showCropSelect && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowCropSelect(false)} className="fixed inset-0 bg-black/60 z-[60] backdrop-blur-sm" />
+            <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="fixed bottom-0 left-0 right-0 bg-white dark:bg-stone-900 z-[70] rounded-t-[2rem] max-h-[85vh] flex flex-col shadow-2xl pb-[env(safe-area-inset-bottom)]">
+              <div className="p-6 flex justify-between items-center border-b border-stone-100 dark:border-stone-800">
+                <h3 className="text-xl font-bold text-stone-900 dark:text-stone-100">Select Crop</h3>
+                <button onClick={() => setShowCropSelect(false)} className="w-8 h-8 bg-stone-100 dark:bg-stone-800 rounded-full flex items-center justify-center text-stone-500"><X className="w-4 h-4"/></button>
+              </div>
+              <div className="p-4 flex flex-col gap-2 overflow-y-auto">
+                {['Rice', 'Wheat', 'Corn', 'Tomato', 'Potato', 'Other'].map(opt => (
+                  <div key={opt} onClick={() => { setCropType(opt); setApiError(''); setShowCropSelect(false); }} className={`p-4 rounded-2xl font-bold text-center cursor-pointer transition-colors ${cropType === opt ? 'bg-emerald-600 text-white' : 'bg-stone-50 dark:bg-stone-800 text-stone-900 dark:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-700'}`}>
+                    {opt}
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </>
+        )}
+        
+        {showLandSelect && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowLandSelect(false)} className="fixed inset-0 bg-black/60 z-[60] backdrop-blur-sm" />
+            <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="fixed bottom-0 left-0 right-0 bg-white dark:bg-stone-900 z-[70] rounded-t-[2rem] max-h-[85vh] flex flex-col shadow-2xl pb-[env(safe-area-inset-bottom)]">
+              <div className="p-6 flex justify-between items-center border-b border-stone-100 dark:border-stone-800">
+                <h3 className="text-xl font-bold text-stone-900 dark:text-stone-100">Select Field</h3>
+                <button onClick={() => setShowLandSelect(false)} className="w-8 h-8 bg-stone-100 dark:bg-stone-800 rounded-full flex items-center justify-center text-stone-500"><X className="w-4 h-4"/></button>
+              </div>
+              <div className="p-4 flex flex-col gap-2 overflow-y-auto">
+                {lands.map((l:any) => (
+                  <div key={l.id} onClick={() => { setSelectedLandId(l.id); setShowLandSelect(false); }} className={`p-4 rounded-2xl font-bold text-center cursor-pointer transition-colors ${selectedLandId === l.id.toString() ? 'bg-emerald-600 text-white' : 'bg-stone-50 dark:bg-stone-800 text-stone-900 dark:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-700'}`}>
+                    {l.name} ({l.area} acres)
+                  </div>
+                ))}
+                <div onClick={() => { setSelectedLandId('new'); setShowLandSelect(false); }} className={`p-4 rounded-2xl font-bold text-center cursor-pointer transition-colors ${selectedLandId === 'new' ? 'bg-emerald-600 text-white' : 'bg-stone-50 dark:bg-stone-800 text-emerald-600 dark:text-emerald-400 hover:bg-stone-100 dark:hover:bg-stone-700'}`}>
+                  + Add New Field
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+
+        {showDatePicker && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowDatePicker(false)} className="fixed inset-0 bg-black/60 z-[60] backdrop-blur-sm" />
+            <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="fixed bottom-0 left-0 right-0 bg-white dark:bg-stone-900 z-[70] rounded-t-[2rem] flex flex-col shadow-2xl pb-[env(safe-area-inset-bottom)]">
+              <div className="p-6 flex justify-between items-center border-b border-stone-100 dark:border-stone-800">
+                <h3 className="text-xl font-bold text-stone-900 dark:text-stone-100">Select Starting Date</h3>
+                <button onClick={() => setShowDatePicker(false)} className="w-8 h-8 bg-stone-100 dark:bg-stone-800 rounded-full flex items-center justify-center text-stone-500"><X className="w-4 h-4"/></button>
+              </div>
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <button onClick={() => {
+                      if (pickerMonth === 0) { setPickerMonth(11); setPickerYear(y => y - 1); }
+                      else setPickerMonth(m => m - 1);
+                  }} className="w-10 h-10 flex items-center justify-center bg-stone-50 dark:bg-stone-800 rounded-full">
+                    <ArrowLeft className="w-5 h-5 text-stone-600 dark:text-stone-300" />
+                  </button>
+                  <span className="font-bold text-lg text-stone-900 dark:text-stone-100">
+                    {new Date(pickerYear, pickerMonth).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </span>
+                  <button onClick={() => {
+                      if (pickerMonth === 11) { setPickerMonth(0); setPickerYear(y => y + 1); }
+                      else setPickerMonth(m => m + 1);
+                  }} className="w-10 h-10 flex items-center justify-center bg-stone-50 dark:bg-stone-800 rounded-full">
+                    <ArrowRight className="w-5 h-5 text-stone-600 dark:text-stone-300" />
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-7 gap-y-3 gap-x-1 text-center">
+                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => <div key={d} className="text-xs font-bold text-stone-400 py-2">{d}</div>)}
+                  {pickerDays.map((d, i) => {
+                    if (!d) return <div key={i} />
+                    const dateStr = `${pickerYear}-${String(pickerMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                    const isSelected = startDate === dateStr;
+                    const isToday = new Date().toISOString().split('T')[0] === dateStr;
+                    return (
+                      <div key={i} onClick={() => { setStartDate(dateStr); setShowDatePicker(false); }} className={`aspect-square flex items-center justify-center rounded-full text-[15px] font-bold cursor-pointer transition-all ${isSelected ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30 ring-4 ring-emerald-600/20' : isToday ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30' : 'text-stone-900 dark:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-800'}`}>
+                        {d}
+                      </div>
+                    )
+                  })}
+                </div>
+                <div className="mt-6 pt-4 border-t border-stone-100 dark:border-stone-800 flex justify-between">
+                    <button onClick={() => { 
+                        const today = new Date(); 
+                        setPickerMonth(today.getMonth()); 
+                        setPickerYear(today.getFullYear()); 
+                        setStartDate(today.toISOString().split('T')[0]); 
+                        setShowDatePicker(false); 
+                    }} className="text-sm font-bold text-emerald-600 dark:text-emerald-400 py-2 px-4 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
+                        Today
+                    </button>
+                    <button onClick={() => setShowDatePicker(false)} className="text-sm font-bold text-stone-600 dark:text-stone-400 py-2 px-4 rounded-xl hover:bg-stone-50 dark:hover:bg-stone-800">
+                        Cancel
+                    </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
     </motion.div>
   );
 }

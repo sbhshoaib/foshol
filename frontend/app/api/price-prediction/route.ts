@@ -32,9 +32,10 @@ const responseSchema: Schema = {
         type: Type.OBJECT,
         properties: {
           title: { type: Type.STRING, description: "The headline or summary of the news" },
-          source: { type: Type.STRING, description: "The source or publication name" }
+          source: { type: Type.STRING, description: "The source or publication name" },
+          date: { type: Type.STRING, description: "The date of the news publication (e.g., 'August 15, 2026', 'Recently')" }
         },
-        required: ["title", "source"]
+        required: ["title", "source", "date"]
       }
     }
   },

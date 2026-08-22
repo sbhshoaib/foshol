@@ -1635,7 +1635,7 @@ function PricePredictionView({ onBack, crops }: { onBack: () => void, crops: any
   const [error, setError] = useState<string>('');
   const [phaseMessage, setPhaseMessage] = useState<string>('');
   const [reportType, setReportType] = useState<'monthly' | 'yearly'>('monthly');
-  const [news, setNews] = useState<{title: string, source: string}[]>([]);
+  const [news, setNews] = useState<{title: string, source: string, date: string}[]>([]);
 
   const uniqueCropNames = Array.from(new Set(crops.map(c => c.type || c.name)));
   if (uniqueCropNames.length === 0) {
@@ -1836,7 +1836,15 @@ function PricePredictionView({ onBack, crops }: { onBack: () => void, crops: any
                   {news.map((item, idx) => (
                     <div key={idx} className="bg-stone-50 dark:bg-stone-800/80 p-4 rounded-xl border border-stone-100 dark:border-stone-700">
                       <p className="text-sm font-bold text-stone-800 dark:text-stone-200">{item.title}</p>
-                      <p className="text-[10px] uppercase tracking-wider font-bold text-stone-400 mt-2">{item.source}</p>
+                      <p className="text-[10px] uppercase tracking-wider font-bold text-stone-400 mt-2 flex items-center gap-2">
+                        <span>{item.source}</span>
+                        {item.date && (
+                          <>
+                            <span className="w-1 h-1 rounded-full bg-stone-300 dark:bg-stone-600"></span>
+                            <span>{item.date}</span>
+                          </>
+                        )}
+                      </p>
                     </div>
                   ))}
                 </div>

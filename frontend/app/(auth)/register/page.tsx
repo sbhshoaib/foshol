@@ -70,7 +70,7 @@ export default function RegisterPage() {
 
   return (
     <div>
-      <h2 className="text-2xl font-semibold text-white mb-6">Create an Account</h2>
+      <h2 className="text-2xl font-semibold text-stone-800 mb-6 text-center">Create an Account</h2>
       
       {error && (
         <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
@@ -80,11 +80,11 @@ export default function RegisterPage() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1.5">Full Name</label>
+          <label className="block text-sm font-semibold text-stone-700 mb-1.5 pl-1">Full Name</label>
           <input
             type="text"
             required
-            className="w-full bg-slate-800/50 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200"
+            className="w-full bg-stone-50/80 rounded-xl px-4 py-3 text-stone-800 placeholder-stone-400 border border-stone-200 focus:outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-200"
             placeholder="John Doe"
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -92,11 +92,11 @@ export default function RegisterPage() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1.5">Email Address</label>
+          <label className="block text-sm font-semibold text-stone-700 mb-1.5 pl-1">Email Address</label>
           <input
             type="email"
             required
-            className="w-full bg-slate-800/50 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200"
+            className="w-full bg-stone-50/80 rounded-xl px-4 py-3 text-stone-800 placeholder-stone-400 border border-stone-200 focus:outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-200"
             placeholder="farmer@example.com"
             value={formData.email}
             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -105,24 +105,24 @@ export default function RegisterPage() {
         
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1.5">Password</label>
+            <label className="block text-sm font-semibold text-stone-700 mb-1.5 pl-1">Password</label>
             <input
               type="password"
               required
               minLength={8}
-              className="w-full bg-slate-800/50 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200"
+              className="w-full bg-stone-50/80 rounded-xl px-4 py-3 text-stone-800 placeholder-stone-400 border border-stone-200 focus:outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-200"
               placeholder="••••••••"
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1.5">Confirm Password</label>
+            <label className="block text-sm font-semibold text-stone-700 mb-1.5 pl-1">Confirm Password</label>
             <input
               type="password"
               required
               minLength={8}
-              className="w-full bg-slate-800/50 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200"
+              className="w-full bg-stone-50/80 rounded-xl px-4 py-3 text-stone-800 placeholder-stone-400 border border-stone-200 focus:outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-200"
               placeholder="••••••••"
               value={formData.password_confirmation}
               onChange={(e) => setFormData({ ...formData, password_confirmation: e.target.value })}
@@ -146,9 +146,9 @@ export default function RegisterPage() {
         </button>
       </form>
 
-      <div className="mt-8 text-center text-sm text-slate-400">
+      <div className="mt-8 text-center text-sm text-stone-500 font-medium">
         Already have an account?{' '}
-        <Link href="/login" className="text-emerald-400 hover:text-emerald-300 font-medium transition-colors">
+        <Link href="/login" className="text-emerald-600 hover:text-emerald-700 font-bold transition-colors">
           Sign In
         </Link>
       </div>

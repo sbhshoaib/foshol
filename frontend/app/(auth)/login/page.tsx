@@ -62,7 +62,7 @@ export default function LoginPage() {
 
   return (
     <div>
-      <h2 className="text-3xl font-semibold text-white mb-8 tracking-tight">Welcome Back</h2>
+      <h2 className="text-3xl font-semibold text-stone-800 mb-8 tracking-tight text-center">Welcome Back</h2>
       
       {error && (
         <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
@@ -72,11 +72,11 @@ export default function LoginPage() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-2 pl-1">Email Address</label>
+          <label className="block text-sm font-semibold text-stone-700 mb-2 pl-1">Email Address</label>
           <input
             type="email"
             required
-            className="w-full bg-slate-800/60 rounded-2xl px-5 py-4 text-white placeholder-slate-400 focus:outline-none focus:bg-slate-700/80 transition-colors duration-200"
+            className="w-full bg-stone-50/80 rounded-2xl px-5 py-4 text-stone-800 placeholder-stone-400 border border-stone-200 focus:outline-none focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all duration-200"
             placeholder="farmer@example.com"
             value={formData.email}
             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -85,15 +85,15 @@ export default function LoginPage() {
         
         <div>
           <div className="flex justify-between items-center mb-2 pl-1 pr-1">
-            <label className="block text-sm font-medium text-slate-300">Password</label>
-            <Link href="/forgot-password" className="text-sm font-medium text-emerald-400 hover:text-emerald-300 transition-colors">
+            <label className="block text-sm font-semibold text-stone-700">Password</label>
+            <Link href="/forgot-password" className="text-sm font-semibold text-emerald-600 hover:text-emerald-700 transition-colors">
               Forgot password?
             </Link>
           </div>
           <input
             type="password"
             required
-            className="w-full bg-slate-800/60 rounded-2xl px-5 py-4 text-white placeholder-slate-400 focus:outline-none focus:bg-slate-700/80 transition-colors duration-200"
+            className="w-full bg-stone-50/80 rounded-2xl px-5 py-4 text-stone-800 placeholder-stone-400 border border-stone-200 focus:outline-none focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all duration-200"
             placeholder="••••••••"
             value={formData.password}
             onChange={(e) => setFormData({ ...formData, password: e.target.value })}
@@ -116,9 +116,9 @@ export default function LoginPage() {
         </button>
       </form>
 
-      <div className="mt-10 text-center text-slate-400">
+      <div className="mt-10 text-center text-stone-500 font-medium">
         New to Foshol?{' '}
-        <Link href="/register" className="text-emerald-400 hover:text-emerald-300 font-semibold transition-colors">
+        <Link href="/register" className="text-emerald-600 hover:text-emerald-700 font-bold transition-colors">
           Create an account
         </Link>
       </div>

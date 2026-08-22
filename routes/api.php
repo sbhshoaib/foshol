@@ -11,8 +11,17 @@ Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 
 use App\Http\Controllers\Api\CropController;
 use App\Http\Controllers\Api\LandController;
+use App\Http\Controllers\Api\AiController;
+use App\Http\Controllers\Api\WeatherController;
 
 Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/ai/chatbot', [AiController::class, 'chatbot']);
+    Route::post('/ai/fertilizer/questions', [AiController::class, 'fertilizerQuestions']);
+    Route::post('/ai/fertilizer/recommendation', [AiController::class, 'fertilizerRecommendation']);
+    Route::post('/ai/crop-phases', [AiController::class, 'cropPhases']);
+    Route::post('/ai/price-prediction', [AiController::class, 'pricePrediction']);
+    Route::post('/ai/weather/summary', [AiController::class, 'weatherSummary']);
+    Route::get('/weather', [WeatherController::class, 'getWeather']);
     Route::get('/user', function (Request $request) {
         return $request->user();
     });
@@ -29,6 +38,24 @@ Route::middleware('auth:sanctum')->group(function () {
         $user->update($request->only(['device_token', 'lat', 'lon']));
         
         return response()->json(['message' => 'Device info updated']);
+    });
+
+    Route::get('/notifications', function (Request $request) {
+        $notifications = \App\Models\Notification::where('user_id', $request->user()->id)
+            ->orderBy('created_at', 'desc')
+            ->limit(20)
+            ->get();
+        return response()->json($notifications);
+    });
+
+    Route::put('/notifications/mark-read', function (Request $request) {
+        \App\Models\Notification::where('user_id', $request->user()->id)->update(['seen' => true]);
+        return response()->json(['message' => 'Marked as read']);
+    });
+
+    Route::post('/process-notifications', function () {
+        \Illuminate\Support\Facades\Artisan::call('app:process-notifications');
+        return response()->json(['message' => 'Notifications processed successfully']);
     });
 
     // Crops

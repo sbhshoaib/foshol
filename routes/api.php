@@ -10,6 +10,7 @@ Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 
 use App\Http\Controllers\Api\CropController;
+use App\Http\Controllers\Api\LandController;
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {
@@ -21,4 +22,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/crops', [CropController::class, 'index']);
     Route::post('/crops', [CropController::class, 'store']);
     Route::delete('/crops/{id}', [CropController::class, 'destroy']);
+
+    // Lands
+    Route::get('/lands', [LandController::class, 'index']);
+    Route::post('/lands', [LandController::class, 'store']);
+    Route::put('/lands/{id}', [LandController::class, 'update']);
+    Route::delete('/lands/{id}', [LandController::class, 'destroy']);
 });

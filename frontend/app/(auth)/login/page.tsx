@@ -10,10 +10,14 @@ import { Loader2, ArrowRight } from 'lucide-react';
 export default function LoginPage() {
   const router = useRouter();
 
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
   useEffect(() => {
     const token = localStorage.getItem('auth_token');
     if (token) {
       router.push('/');
+    } else {
+      setIsCheckingAuth(false);
     }
   }, [router]);
   const [loading, setLoading] = useState(false);
@@ -22,6 +26,14 @@ export default function LoginPage() {
     email: '',
     password: '',
   });
+
+  if (isCheckingAuth) {
+    return (
+      <div className="flex justify-center items-center min-h-[300px]">
+        <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
+      </div>
+    );
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

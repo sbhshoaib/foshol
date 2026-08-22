@@ -11,20 +11,19 @@
 // from-zinc-700 to-zinc-900
 // from-blue-700 to-blue-950
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-
   Home, Leaf, Calendar, User, CloudRain, ScanLine, TrendingUp, MessageSquare,
   Droplets, Settings, Bell, Sun, ChevronRight, Plus, MapPin, LogOut, Moon,
-  X, Check, Image as ImageIcon, CheckCircle2, ArrowLeft, MoreHorizontal, FileText, Sprout, Trash2
+  X, Check, Image as ImageIcon, CheckCircle2, ArrowLeft, ArrowRight, MoreHorizontal, FileText, Sprout, Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { fetchApi } from '../lib/api';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 
 // Custom Tab Types
-type ViewType = 'dashboard' | 'ai' | 'calendar' | 'profile' | 'edit_profile' | 'add_crop' | 'add_task' | 'crop_progress' | 'price_prediction';
+type ViewType = 'dashboard' | 'ai' | 'chatbot' | 'fertilizer_ai' | 'calendar' | 'profile' | 'edit_profile' | 'add_crop' | 'add_task' | 'crop_progress' | 'price_prediction';
 
 const cropThemes: any = {
   slate: { bgGlow: 'from-slate-50 to-white dark:from-slate-900/20 dark:to-stone-900', textAccent: 'text-slate-600 dark:text-slate-400', bgPill: 'bg-slate-100 dark:bg-slate-900/40', textPill: 'text-slate-800 dark:text-slate-300', bgProgress: 'bg-slate-500 dark:bg-slate-400', borderIcon: 'border-slate-100 dark:border-slate-800' },
@@ -67,14 +66,40 @@ export default function FosholApp() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showFabMenu, setShowFabMenu] = useState(false);
 
-  const [crops, setCrops] = useState<any[]>([]);
-  const [tasks, setTasks] = useState<any[]>([]);
-  const [isLoadingData, setIsLoadingData] = useState(true);
+  const [crops, setCrops] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem('crops_cache');
+      if (cached) return JSON.parse(cached);
+    }
+    return [];
+  });
+  const [tasks, setTasks] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem('tasks_cache');
+      if (cached) return JSON.parse(cached);
+    }
+    return [];
+  });
+  const [lands, setLands] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem('lands_cache');
+      if (cached) return JSON.parse(cached);
+    }
+    return [];
+  });
+  const [isLoadingData, setIsLoadingData] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return !localStorage.getItem('crops_cache');
+    }
+    return true;
+  });
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   const fetchDashboardData = async () => {
     try {
       const fetchedCrops = await fetchApi('/crops', { requireAuth: true });
       setCrops(fetchedCrops);
+      localStorage.setItem('crops_cache', JSON.stringify(fetchedCrops));
       
       let allTasks: any[] = [];
       fetchedCrops.forEach((c: any) => {
@@ -92,6 +117,11 @@ export default function FosholApp() {
       });
       allTasks.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
       setTasks(allTasks);
+      localStorage.setItem('tasks_cache', JSON.stringify(allTasks));
+
+      const fetchedLands = await fetchApi('/lands', { requireAuth: true });
+      setLands(fetchedLands);
+      localStorage.setItem('lands_cache', JSON.stringify(fetchedLands));
     } catch (err) {
       console.error("Failed to load data", err);
     } finally {
@@ -123,6 +153,7 @@ export default function FosholApp() {
       router.push('/login');
     } else {
       fetchDashboardData();
+      setIsCheckingAuth(false);
     }
   }, [router]);
 
@@ -174,8 +205,18 @@ export default function FosholApp() {
     }
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user');
+    localStorage.removeItem('crops_cache');
+    localStorage.removeItem('tasks_cache');
     router.push('/login');
   };
+
+  if (isCheckingAuth) {
+    return (
+      <div className="flex justify-center min-h-screen bg-stone-50 dark:bg-stone-950 items-center">
+        <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   return (
     <div className={`flex justify-center min-h-screen bg-stone-50 dark:bg-stone-950 items-center font-sans transition-colors duration-300`}>
@@ -265,12 +306,14 @@ export default function FosholApp() {
         {/* Scrollable Main Area */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden relative scroll-smooth bg-stone-50 dark:bg-stone-900 pb-28">
           <AnimatePresence mode="wait" initial={false}>
-            {activeView === 'dashboard' && <DashboardView key="dashboard" crops={crops} tasks={tasks} toggleTask={toggleTask} onViewCropProgress={() => setActiveView('crop_progress')} onDeleteCrop={handleDeleteCrop} />}
-            {activeView === 'ai' && <AIToolsView key="ai" onOpenPrediction={() => setActiveView('price_prediction')} />}
+            {activeView === 'dashboard' && <DashboardView key="dashboard" crops={crops} tasks={tasks} lands={lands} toggleTask={toggleTask} onViewCropProgress={() => setActiveView('crop_progress')} onDeleteCrop={handleDeleteCrop} />}
+            {activeView === 'ai' && <AIToolsView key="ai" onOpenPrediction={() => setActiveView('price_prediction')} onOpenChatbot={() => setActiveView('chatbot')} onOpenFertilizer={() => setActiveView('fertilizer_ai')} />}
+            {activeView === 'chatbot' && <ChatbotView key="chatbot" onBack={() => setActiveView('ai')} contextData={{ crops, tasks, lands }} />}
+            {activeView === 'fertilizer_ai' && <FertilizerAIView key="fertilizer_ai" onBack={() => setActiveView('ai')} crops={crops} lands={lands} />}
             {activeView === 'calendar' && <CalendarView key="calendar" tasks={tasks} toggleTask={toggleTask} />}
-            {activeView === 'profile' && <ProfileView key="profile" onEdit={() => setActiveView('edit_profile')} onSignOut={handleSignOut} />}
+            {activeView === 'profile' && <ProfileView key="profile" lands={lands} onEdit={() => setActiveView('edit_profile')} onSignOut={handleSignOut} fetchDashboardData={fetchDashboardData} />}
             {activeView === 'edit_profile' && <EditProfileView key="edit_profile" onBack={() => setActiveView('profile')} onSave={() => { setProfileAlert('Profile updated successfully'); setActiveView('profile'); setTimeout(() => setProfileAlert(''), 3000); }} />}
-            {activeView === 'add_crop' && <AddCropView key="add_crop" onBack={() => setActiveView('dashboard')} onSave={() => { fetchDashboardData(); setActiveView('dashboard'); }} />}
+            {activeView === 'add_crop' && <AddCropView key="add_crop" lands={lands} onBack={() => setActiveView('dashboard')} onSave={() => { fetchDashboardData(); setActiveView('dashboard'); }} />}
             {activeView === 'add_task' && <AddTaskView key="add_task" onBack={() => setActiveView('dashboard')} onSave={() => setActiveView('dashboard')} />}
             {activeView === 'crop_progress' && <CropProgressView key="crop_progress" crops={crops} onBack={() => setActiveView('dashboard')} onDeleteCrop={handleDeleteCrop} />}
             {activeView === 'price_prediction' && <PricePredictionView key="price_prediction" onBack={() => setActiveView('ai')} crops={crops} />}
@@ -306,7 +349,7 @@ export default function FosholApp() {
         {(activeView === 'dashboard' || activeView === 'ai' || activeView === 'calendar' || activeView === 'profile') && (
           <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-stone-900 border-t border-stone-100 dark:border-stone-800 flex justify-around items-end pb-6 pt-3 px-2 shadow-[0_-10px_40px_rgba(0,0,0,0.06)] z-50 rounded-t-3xl transition-colors duration-300">
             <NavItem icon={Home} label="Home" isActive={activeView === 'dashboard'} onClick={() => setActiveView('dashboard')} />
-            <NavItem icon={ScanLine} label="AI Tools" isActive={activeView === 'ai'} onClick={() => setActiveView('ai')} />
+            <NavItem icon={ScanLine} label="AI Tools" isActive={activeView === 'ai' || activeView === 'chatbot' || activeView === 'price_prediction'} onClick={() => setActiveView('ai')} />
             <NavItem icon={Calendar} label="Tasks" isActive={activeView === 'calendar'} onClick={() => setActiveView('calendar')} />
             <NavItem icon={User} label="Profile" isActive={activeView === 'profile'} onClick={() => setActiveView('profile')} />
           </nav>
@@ -362,7 +405,7 @@ export default function FosholApp() {
 // Views
 // ==========================================
 
-function DashboardView({ crops, tasks, toggleTask, onViewCropProgress, onDeleteCrop }: { crops: any[], tasks: any[], toggleTask: (id: number) => void, onViewCropProgress: () => void, onDeleteCrop: (id: number) => void }) {
+function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, onDeleteCrop }: { crops: any[], tasks: any[], lands: any[], toggleTask: (id: number) => void, onViewCropProgress: () => void, onDeleteCrop: (id: number) => void }) {
   const [weatherData, setWeatherData] = useState<{ temp: number | null, condition: string, location: string, rainChance3Hr: number | null, rainChanceToday: number | null, loading: boolean, error: string }>(() => {
     if (typeof window !== 'undefined') {
       const cached = localStorage.getItem('weather_cache');
@@ -589,9 +632,9 @@ function DashboardView({ crops, tasks, toggleTask, onViewCropProgress, onDeleteC
                               {crop.emoji || '🌾'}
                             </div>
                             <div>
-                              <h4 className="font-bold text-stone-900 dark:text-stone-100 text-xl tracking-tight">{crop.type}</h4>
+                              <h4 className="font-bold text-stone-900 dark:text-stone-100 text-xl tracking-tight">{crop.land?.name || crop.name}</h4>
                               <div className="flex items-center gap-1.5 mt-1 text-sm font-medium text-stone-500 dark:text-stone-400">
-                                <MapPin className="w-3.5 h-3.5" /> {crop.name} {crop.land_area ? `• ${crop.land_area} Acres` : ''}
+                                <MapPin className="w-3.5 h-3.5" /> {crop.type} {crop.land?.area ? `• ${crop.land.area} Acres` : ''}
                               </div>
                             </div>
                           </div>
@@ -687,7 +730,7 @@ function DashboardView({ crops, tasks, toggleTask, onViewCropProgress, onDeleteC
   );
 }
 
-function AIToolsView({ onOpenPrediction }: { onOpenPrediction?: () => void }) {
+function AIToolsView({ onOpenPrediction, onOpenChatbot, onOpenFertilizer }: { onOpenPrediction?: () => void, onOpenChatbot?: () => void, onOpenFertilizer?: () => void }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
@@ -698,8 +741,8 @@ function AIToolsView({ onOpenPrediction }: { onOpenPrediction?: () => void }) {
       <div className="grid grid-cols-2 gap-4">
         <ToolCard title="Disease Detection" desc="Scan leaves for diseases" icon={<ScanLine className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />} color="bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800" />
         <ToolCard title="Price Prediction" desc="Market price forecasting" icon={<TrendingUp className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />} color="bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 dark:border-indigo-800" onClick={onOpenPrediction} />
-        <ToolCard title="Fertilizer AI" desc="Smart soil recommendations" icon={<Droplets className="w-6 h-6 text-cyan-600 dark:text-cyan-400" />} color="bg-cyan-50 dark:bg-cyan-900/20 border-cyan-100 dark:border-cyan-800" />
-        <ToolCard title="Agri Chatbot" desc="Ask anything about farming" icon={<MessageSquare className="w-6 h-6 text-orange-600 dark:text-orange-400" />} color="bg-orange-50 dark:bg-orange-900/20 border-orange-100 dark:border-orange-800" />
+        <ToolCard title="Fertilizer AI" desc="Smart soil recommendations" icon={<Droplets className="w-6 h-6 text-cyan-600 dark:text-cyan-400" />} color="bg-cyan-50 dark:bg-cyan-900/20 border-cyan-100 dark:border-cyan-800" onClick={onOpenFertilizer} />
+        <ToolCard title="Agri Chatbot" desc="Ask anything about farming" icon={<MessageSquare className="w-6 h-6 text-orange-600 dark:text-orange-400" />} color="bg-orange-50 dark:bg-orange-900/20 border-orange-100 dark:border-orange-800" onClick={onOpenChatbot} />
       </div>
 
       <div className="mt-6 bg-stone-900 dark:bg-stone-950 rounded-[2rem] p-6 relative overflow-hidden text-white shadow-xl">
@@ -716,6 +759,355 @@ function AIToolsView({ onOpenPrediction }: { onOpenPrediction?: () => void }) {
             <ScanLine className="w-4 h-4" /> Open Camera
           </button>
         </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function ChatbotView({ onBack, contextData }: { onBack: () => void, contextData: any }) {
+  const [messages, setMessages] = useState<{role: 'user' | 'ai', text: string}[]>([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [rollingSummary, setRollingSummary] = useState('');
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const handleSend = async () => {
+    if (!input.trim() || loading) return;
+
+    const userMessage = input.trim();
+    setMessages(prev => [...prev, { role: 'user', text: userMessage }]);
+    setInput('');
+    setLoading(true);
+
+    try {
+      const res = await fetch('/api/chatbot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userMessage,
+          previousSummary: rollingSummary,
+          contextData: messages.length === 0 ? contextData : null
+        })
+      });
+
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      setMessages(prev => [...prev, { role: 'ai', text: data.response }]);
+      setRollingSummary(data.summary);
+    } catch (err: any) {
+       setMessages(prev => [...prev, { role: 'ai', text: `Error: ${err.message}` }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="h-full bg-white dark:bg-stone-900 flex flex-col absolute inset-0 z-30 pb-20">
+      <header className="px-5 py-4 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between bg-white dark:bg-stone-900">
+        <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-300">
+          <ArrowLeft className="w-6 h-6" />
+        </button>
+        <div className="flex items-center gap-2">
+            <MessageSquare className="w-5 h-5 text-emerald-600" />
+            <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100">Agri Chatbot</h2>
+        </div>
+        <div className="w-10"></div>
+      </header>
+
+      <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-stone-50 dark:bg-stone-950">
+        <div className="flex justify-start">
+            <div className="bg-white dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-2xl rounded-tl-sm p-4 max-w-[85%] shadow-sm">
+                <p className="text-stone-700 dark:text-stone-300 text-sm">Hello! I am your AI assistant. I have already loaded your crops, lands, and tasks data. How can I help you today?</p>
+            </div>
+        </div>
+        {messages.map((msg, i) => (
+          <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`p-4 max-w-[85%] rounded-2xl shadow-sm text-sm ${
+                msg.role === 'user' 
+                ? 'bg-emerald-600 text-white rounded-tr-sm' 
+                : 'bg-white dark:bg-stone-800 border border-stone-100 dark:border-stone-700 text-stone-700 dark:text-stone-300 rounded-tl-sm'
+            }`}>
+              {msg.text}
+            </div>
+          </div>
+        ))}
+        {loading && (
+          <div className="flex justify-start">
+            <div className="bg-white dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-2xl rounded-tl-sm p-4 max-w-[85%] shadow-sm flex items-center gap-2">
+                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce"></div>
+                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+            </div>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      <div className="p-4 bg-white dark:bg-stone-900 border-t border-stone-100 dark:border-stone-800 absolute bottom-0 left-0 right-0 z-40">
+        <div className="flex items-center gap-2 bg-stone-50 dark:bg-stone-800 p-2 rounded-2xl border border-stone-200 dark:border-stone-700">
+          <input 
+            type="text" 
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSend()}
+            placeholder="Ask about your crops or lands..." 
+            className="flex-1 bg-transparent border-none focus:outline-none text-stone-900 dark:text-stone-100 px-3 py-2 text-sm"
+          />
+          <button onClick={handleSend} disabled={!input.trim() || loading} className="w-10 h-10 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 flex items-center justify-center rounded-xl text-white transition-colors">
+            <ArrowRight className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function FertilizerAIView({ onBack, crops, lands }: { onBack: () => void, crops: any[], lands: any[] }) {
+  const [step, setStep] = useState<'SELECT_CROP' | 'GENERATING_QUESTIONS' | 'QUIZ' | 'GENERATING_RESULT' | 'RESULT'>('SELECT_CROP');
+  const [selectedCrop, setSelectedCrop] = useState<any>(null);
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [recommendation, setRecommendation] = useState<any>(null);
+  const [apiError, setApiError] = useState('');
+
+  const handleStart = async (crop: any) => {
+    setSelectedCrop(crop);
+    setStep('GENERATING_QUESTIONS');
+    setApiError('');
+
+    try {
+      const res = await fetch('/api/fertilizer/questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cropName: crop.name,
+          cropType: crop.type,
+          landArea: crop.land?.area
+        })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      setQuestions(data.questions);
+      setStep('QUIZ');
+    } catch (err: any) {
+      setApiError(err.message);
+      setStep('SELECT_CROP');
+    }
+  };
+
+  const handleSubmitQuiz = async () => {
+    if (Object.keys(answers).length < questions.length) {
+      alert("Please answer all questions.");
+      return;
+    }
+    
+    setStep('GENERATING_RESULT');
+    setApiError('');
+    
+    const qaPairs = questions.map(q => ({
+       question: q.question,
+       answer: answers[q.id]
+    }));
+
+    try {
+      const res = await fetch('/api/fertilizer/recommendation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cropName: selectedCrop.name,
+          cropType: selectedCrop.type,
+          landArea: selectedCrop.land?.area,
+          qaPairs
+        })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      setRecommendation(data);
+      setStep('RESULT');
+    } catch (err: any) {
+      setApiError(err.message);
+      setStep('QUIZ');
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="h-full bg-white dark:bg-stone-900 flex flex-col absolute inset-0 z-30 pb-20">
+      <header className="px-5 py-4 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between bg-white dark:bg-stone-900">
+        <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-300">
+          <ArrowLeft className="w-6 h-6" />
+        </button>
+        <div className="flex items-center gap-2">
+            <Droplets className="w-5 h-5 text-cyan-600" />
+            <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100">Fertilizer AI</h2>
+        </div>
+        <div className="w-10"></div>
+      </header>
+
+      <div className="flex-1 overflow-y-auto p-6 bg-stone-50 dark:bg-stone-950 flex flex-col">
+        {apiError && (
+            <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-4 rounded-2xl text-sm font-medium border border-red-100 dark:border-red-900/30 mb-6">
+                {apiError}
+            </div>
+        )}
+
+        {step === 'SELECT_CROP' && (
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-xl font-bold text-stone-900 dark:text-stone-100 mb-2">Select a Crop to Diagnose</h3>
+              <p className="text-sm text-stone-500 dark:text-stone-400">Our AI will ask you a few questions about its current state to recommend the perfect fertilizer regimen.</p>
+            </div>
+            
+            {(!crops || crops.length === 0) ? (
+               <div className="bg-white dark:bg-stone-800 rounded-[2rem] p-6 text-center shadow-sm">
+                   <p className="text-stone-500 dark:text-stone-400 font-medium">You don't have any crops added yet.</p>
+               </div>
+            ) : (
+               <div className="grid gap-4">
+                 {crops.map((crop) => (
+                    <button 
+                      key={crop.id} 
+                      onClick={() => handleStart(crop)}
+                      className="flex items-center justify-between bg-white dark:bg-stone-800 p-4 rounded-3xl border border-stone-100 dark:border-stone-700 shadow-sm hover:border-cyan-200 dark:hover:border-cyan-800 transition-colors text-left group"
+                    >
+                      <div className="flex items-center gap-4">
+                         <div className="w-12 h-12 bg-cyan-50 dark:bg-cyan-900/20 rounded-2xl flex items-center justify-center text-2xl border border-cyan-100 dark:border-cyan-900/50 group-hover:scale-105 transition-transform">
+                             {crop.emoji || '🌱'}
+                         </div>
+                         <div>
+                            <h4 className="font-bold text-stone-900 dark:text-stone-100">{crop.land?.name || crop.name}</h4>
+                            <p className="text-xs font-medium text-stone-500 dark:text-stone-400">{crop.type} {crop.land?.area ? `• ${crop.land.area} acres` : ''}</p>
+                         </div>
+                      </div>
+                      <ArrowRight className="w-5 h-5 text-stone-400 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors" />
+                    </button>
+                 ))}
+               </div>
+            )}
+          </div>
+        )}
+
+        {(step === 'GENERATING_QUESTIONS' || step === 'GENERATING_RESULT') && (
+           <div className="flex-1 flex flex-col items-center justify-center text-center">
+             <div className="w-20 h-20 border-4 border-cyan-100 border-t-cyan-600 rounded-full animate-spin mb-6 drop-shadow-md"></div>
+             <h3 className="text-2xl font-bold text-stone-900 dark:text-stone-100 mb-2">
+               {step === 'GENERATING_QUESTIONS' ? 'Analyzing Crop Context...' : 'Generating Prescription...'}
+             </h3>
+             <p className="text-stone-500 dark:text-stone-400 text-sm max-w-xs mx-auto">
+               {step === 'GENERATING_QUESTIONS' 
+                 ? 'AI is preparing diagnostic questions specific to your crop and land.' 
+                 : 'AI is formulating the perfect fertilizer recommendations based on your answers.'}
+             </p>
+           </div>
+        )}
+
+        {step === 'QUIZ' && (
+           <div className="space-y-8 pb-12">
+             <div className="text-center mb-4">
+                <span className="bg-cyan-100 dark:bg-cyan-900/50 text-cyan-800 dark:text-cyan-300 text-xs font-bold px-3 py-1.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1.5 shadow-sm">
+                   <Droplets className="w-3.5 h-3.5" /> Diagnosis for {selectedCrop?.type}
+                </span>
+             </div>
+             
+             {questions.map((q, idx) => (
+               <div key={q.id} className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm relative overflow-hidden">
+                 <div className="absolute top-0 left-0 w-1 h-full bg-cyan-500"></div>
+                 <h4 className="font-bold text-stone-900 dark:text-stone-100 text-lg mb-4">{idx + 1}. {q.question}</h4>
+                 <div className="space-y-3">
+                   {q.options.map((opt: string) => (
+                     <button
+                       key={opt}
+                       onClick={() => setAnswers({...answers, [q.id]: opt})}
+                       className={`w-full text-left p-4 rounded-2xl border transition-all ${
+                         answers[q.id] === opt 
+                         ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-900/20 text-cyan-900 dark:text-cyan-100 shadow-md shadow-cyan-500/10' 
+                         : 'border-stone-200 dark:border-stone-700 bg-transparent text-stone-700 dark:text-stone-300 hover:border-cyan-300 dark:hover:border-cyan-700 hover:bg-stone-50 dark:hover:bg-stone-800'
+                       }`}
+                     >
+                       <div className="flex items-center gap-3">
+                           <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${answers[q.id] === opt ? 'border-cyan-500 bg-cyan-500' : 'border-stone-300 dark:border-stone-600'}`}>
+                               {answers[q.id] === opt && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                           </div>
+                           <span className="font-medium">{opt}</span>
+                       </div>
+                     </button>
+                   ))}
+                 </div>
+               </div>
+             ))}
+
+             <button 
+               onClick={handleSubmitQuiz} 
+               className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-5 rounded-3xl shadow-lg shadow-cyan-600/20 transition-all flex items-center justify-center gap-2 text-lg active:scale-[0.98]"
+             >
+               Diagnose Health
+             </button>
+           </div>
+        )}
+
+        {step === 'RESULT' && recommendation && (
+           <div className="space-y-6 pb-12">
+             {recommendation.needs_fertilizer === false ? (
+                <div className="bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-[2.5rem] p-8 text-white shadow-xl text-center relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
+                    <div className="w-20 h-20 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner border border-white/30">
+                        <ScanLine className="w-10 h-10 text-white" />
+                    </div>
+                    <h3 className="text-3xl font-bold mb-3 tracking-tight">Healthy Crop!</h3>
+                    <p className="text-emerald-50 text-base leading-relaxed font-medium">
+                        {recommendation.no_fertilizer_reason || 'Based on your answers, your crop is doing perfectly fine and does not require any additional fertilizer at this moment.'}
+                    </p>
+                    <button onClick={() => setStep('SELECT_CROP')} className="mt-8 bg-white text-emerald-700 font-bold py-3.5 px-8 rounded-2xl shadow-lg hover:bg-emerald-50 transition-colors">
+                        Diagnose Another Crop
+                    </button>
+                </div>
+             ) : (
+                <div className="space-y-6">
+                    <div className="bg-gradient-to-br from-cyan-600 to-indigo-600 rounded-[2.5rem] p-8 text-white shadow-xl relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
+                        <h3 className="text-3xl font-bold mb-2 tracking-tight">Prescription</h3>
+                        <p className="text-cyan-50 text-sm font-medium opacity-90">AI detected nutrient deficiencies. Apply the following for optimal yield.</p>
+                    </div>
+
+                    <div className="space-y-4">
+                        {recommendation.fertilizers?.map((fert: any, idx: number) => (
+                            <div key={idx} className="bg-white dark:bg-stone-800 rounded-3xl p-6 border border-stone-100 dark:border-stone-700 shadow-lg shadow-stone-200/50 dark:shadow-none relative">
+                                <div className="absolute top-6 right-6 w-12 h-12 bg-cyan-50 dark:bg-cyan-900/20 rounded-2xl flex items-center justify-center">
+                                    <Droplets className="w-6 h-6 text-cyan-600 dark:text-cyan-400" />
+                                </div>
+                                <h4 className="text-xl font-bold text-stone-900 dark:text-stone-100 pr-14 mb-1">{fert.name}</h4>
+                                <div className="inline-block bg-stone-100 dark:bg-stone-700 text-stone-700 dark:text-stone-300 text-xs font-bold px-3 py-1 rounded-full mb-6">
+                                    {fert.amount}
+                                </div>
+                                
+                                <div className="space-y-4">
+                                    <div>
+                                        <h5 className="text-xs uppercase tracking-wider font-bold text-stone-400 mb-1.5 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5"/> Guidelines</h5>
+                                        <p className="text-sm font-medium text-stone-700 dark:text-stone-300 leading-relaxed">{fert.guideline}</p>
+                                    </div>
+                                    <div className="pt-4 border-t border-stone-100 dark:border-stone-700">
+                                        <h5 className="text-xs uppercase tracking-wider font-bold text-emerald-500 mb-1.5 flex items-center gap-1.5"><TrendingUp className="w-3.5 h-3.5"/> Expected Outcome</h5>
+                                        <p className="text-sm font-medium text-stone-700 dark:text-stone-300 leading-relaxed">{fert.outcome}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    
+                    <button onClick={() => setStep('SELECT_CROP')} className="w-full bg-stone-200 dark:bg-stone-800 hover:bg-stone-300 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 font-bold py-5 rounded-3xl transition-all flex items-center justify-center text-lg mt-4 shadow-sm">
+                        Start New Diagnosis
+                    </button>
+                </div>
+             )}
+           </div>
+        )}
       </div>
     </motion.div>
   );
@@ -967,7 +1359,7 @@ function CalendarView({ tasks, toggleTask }: { tasks: any[], toggleTask: (id: nu
   );
 }
 
-function ProfileView({ onEdit, onSignOut }: { onEdit: () => void, onSignOut: () => void }) {
+function ProfileView({ lands, onEdit, onSignOut, fetchDashboardData }: { lands: any[], onEdit: () => void, onSignOut: () => void, fetchDashboardData: () => void }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
@@ -991,13 +1383,49 @@ function ProfileView({ onEdit, onSignOut }: { onEdit: () => void, onSignOut: () 
 
       <div className="grid grid-cols-2 gap-4 mb-8">
         <div className="bg-white dark:bg-stone-800 p-5 rounded-[2rem] border border-stone-100 dark:border-stone-700 text-center shadow-sm">
-          <div className="text-3xl font-bold text-stone-900 dark:text-stone-100">4.5</div>
+          <div className="text-3xl font-bold text-stone-900 dark:text-stone-100">{lands?.reduce((sum, l) => sum + (parseFloat(l.area) || 0), 0) || 0}</div>
           <div className="text-[10px] font-bold text-stone-400 dark:text-stone-500 uppercase tracking-wider mt-1">Acres Total</div>
         </div>
         <div className="bg-white dark:bg-stone-800 p-5 rounded-[2rem] border border-stone-100 dark:border-stone-700 text-center shadow-sm">
-          <div className="text-3xl font-bold text-stone-900 dark:text-stone-100">3</div>
-          <div className="text-[10px] font-bold text-stone-400 dark:text-stone-500 uppercase tracking-wider mt-1">Active Crops</div>
+          <div className="text-3xl font-bold text-stone-900 dark:text-stone-100">{lands?.length || 0}</div>
+          <div className="text-[10px] font-bold text-stone-400 dark:text-stone-500 uppercase tracking-wider mt-1">Total Lands</div>
         </div>
+      </div>
+
+      <div className="mb-8">
+        <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100 uppercase tracking-wider mb-4 px-1">My Lands</h3>
+        {lands?.length > 0 ? (
+          <div className="space-y-3">
+            {lands.map(land => (
+              <div key={land.id} className="flex justify-between items-center bg-white dark:bg-stone-800 p-4 rounded-2xl border border-stone-100 dark:border-stone-700 shadow-sm">
+                <div>
+                  <h4 className="font-bold text-stone-900 dark:text-stone-100">{land.name}</h4>
+                  <p className="text-xs text-stone-500 dark:text-stone-400">{land.area} acres</p>
+                </div>
+                <button 
+                  onClick={async () => {
+                    if (confirm(`Are you sure you want to delete ${land.name}?`)) {
+                      try {
+                        const { fetchApi } = await import('./api');
+                        await fetchApi(`/lands/${land.id}`, { method: 'DELETE', requireAuth: true });
+                        fetchDashboardData();
+                      } catch (e) {
+                        alert('Failed to delete land');
+                      }
+                    }
+                  }} 
+                  className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="bg-stone-50 dark:bg-stone-800 rounded-[2rem] p-5 text-center text-stone-500 text-sm">
+             No lands added yet.
+          </div>
+        )}
       </div>
 
       <div className="space-y-3 bg-white dark:bg-stone-800 p-2 rounded-[2rem] border border-stone-100 dark:border-stone-700 shadow-sm">
@@ -1059,10 +1487,11 @@ function EditProfileView({ onBack, onSave }: { onBack: () => void, onSave: () =>
   );
 }
 
-function AddCropView({ onBack, onSave }: { onBack: () => void, onSave: () => void }) {
+function AddCropView({ lands, onBack, onSave }: { lands: any[], onBack: () => void, onSave: () => void }) {
   const [cropType, setCropType] = useState('Rice');
   const [customCropType, setCustomCropType] = useState('');
   const [apiError, setApiError] = useState('');
+  const [selectedLandId, setSelectedLandId] = useState(lands?.length > 0 ? lands[0].id : 'new');
   const [fieldName, setFieldName] = useState('');
   const [startDate, setStartDate] = useState('');
   const [landArea, setLandArea] = useState('');
@@ -1191,13 +1620,16 @@ function AddCropView({ onBack, onSave }: { onBack: () => void, onSave: () => voi
              method: 'POST',
              requireAuth: true,
              body: JSON.stringify({
-                 name: fieldName || finalCropType,
+                 name: (selectedLandId === 'new' ? fieldName : lands.find((l:any) => l.id == selectedLandId)?.name) || finalCropType,
                  type: finalCropType,
                  start_date: startDate,
                  color_shade: reviewData.colorShade,
                  emoji: getEmojiForCrop(finalCropType),
                  phases: finalPhases,
-                 tasks: finalTasks
+                 tasks: finalTasks,
+                 land_id: selectedLandId !== 'new' ? selectedLandId : null,
+                 new_land_name: selectedLandId === 'new' ? fieldName : null,
+                 new_land_area: selectedLandId === 'new' ? landArea : null
              })
          });
          onSave(); // Close view and potentially trigger a refresh
@@ -1263,13 +1695,27 @@ function AddCropView({ onBack, onSave }: { onBack: () => void, onSave: () => voi
               </motion.div>
           )}
           <div>
-            <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Field Name (Optional)</label>
-            <input type="text" value={fieldName} onChange={e => setFieldName(e.target.value)} placeholder="e.g. North Field" className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50 block" />
+            <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Select Field</label>
+            <select value={selectedLandId} onChange={e => setSelectedLandId(e.target.value)} className="appearance-auto w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50 block mb-4">
+              {lands?.length > 0 && lands.map((l:any) => (
+                <option key={l.id} value={l.id}>{l.name} ({l.area} acres)</option>
+              ))}
+              <option value="new">+ Add New Field</option>
+            </select>
           </div>
-          <div>
-            <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Land Area in Acres (Optional)</label>
-            <input type="number" step="0.1" min="0" value={landArea} onChange={e => setLandArea(e.target.value)} placeholder="e.g. 2.5" className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50 block" />
-          </div>
+          
+          {selectedLandId === 'new' && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">New Field Name (Optional)</label>
+                <input type="text" value={fieldName} onChange={e => setFieldName(e.target.value)} placeholder="e.g. North Plot" className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50 block" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Land Area in Acres (Optional)</label>
+                <input type="number" step="0.1" min="0" value={landArea} onChange={e => setLandArea(e.target.value)} placeholder="e.g. 2.5" className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50 block" />
+              </div>
+            </motion.div>
+          )}
           <div>
             <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Starting Date</label>
             <input 

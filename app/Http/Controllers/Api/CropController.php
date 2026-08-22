@@ -18,7 +18,7 @@ class CropController extends Controller
         // we can fetch all or just the authenticated user's crops.
         $userId = Auth::id() ?: 1; // Fallback to 1 for dev if auth isn't passed
 
-        $crops = Crop::with(['phases', 'tasks'])->where('user_id', $userId)->orderBy('created_at', 'desc')->get();
+        $crops = Crop::with(['phases', 'tasks', 'land'])->where('user_id', $userId)->orderBy('created_at', 'desc')->get();
         return response()->json($crops);
     }
 
@@ -32,15 +32,31 @@ class CropController extends Controller
             'emoji' => 'nullable|string',
             'phases' => 'required|array',
             'tasks' => 'nullable|array',
+            'land_id' => 'nullable|exists:lands,id',
+            'new_land_name' => 'nullable|string',
+            'new_land_area' => 'nullable|numeric|min:0',
         ]);
 
         $userId = Auth::id() ?: 1;
 
         DB::beginTransaction();
         try {
+            $landId = $request->land_id;
+
+            // If creating a new land on the fly
+            if (!$landId && $request->new_land_name) {
+                $land = \App\Models\Land::create([
+                    'user_id' => $userId,
+                    'name' => $request->new_land_name,
+                    'area' => $request->new_land_area,
+                ]);
+                $landId = $land->id;
+            }
+
             // Create Crop
             $crop = Crop::create([
                 'user_id' => $userId,
+                'land_id' => $landId,
                 'name' => $request->name,
                 'type' => $request->type,
                 'start_date' => $request->start_date,

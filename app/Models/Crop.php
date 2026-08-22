@@ -14,11 +14,17 @@ class Crop extends Model
         'color_shade',
         'emoji',
         'status',
+        'land_id',
     ];
 
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function land()
+    {
+        return $this->belongsTo(Land::class);
     }
 
     public function phases()

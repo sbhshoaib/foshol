@@ -23,9 +23,11 @@ import { fetchApi } from '../lib/api';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { StatusBar, Style } from '@capacitor/status-bar';
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { Camera as CameraIcon, HeartPulse, Upload, Loader2, Info, Sparkles } from 'lucide-react';
 
 // Custom Tab Types
-type ViewType = 'dashboard' | 'ai' | 'chatbot' | 'fertilizer_ai' | 'calendar' | 'profile' | 'edit_profile' | 'add_crop' | 'add_task' | 'crop_progress' | 'price_prediction';
+type ViewType = 'dashboard' | 'ai' | 'chatbot' | 'fertilizer_ai' | 'calendar' | 'profile' | 'edit_profile' | 'add_crop' | 'add_task' | 'crop_progress' | 'price_prediction' | 'disease_detection';
 
 const cropThemes: any = {
   slate: { bgGlow: 'from-slate-50 to-white dark:from-slate-900/20 dark:to-stone-900', textAccent: 'text-slate-600 dark:text-slate-400', bgPill: 'bg-slate-100 dark:bg-slate-900/40', textPill: 'text-slate-800 dark:text-slate-300', bgProgress: 'bg-slate-500 dark:bg-slate-400', borderIcon: 'border-slate-100 dark:border-slate-800' },
@@ -63,6 +65,7 @@ const getCropTheme = (colorStr: string | null) => {
 export default function FosholApp() {
   const router = useRouter();
   const [activeView, setActiveView] = useState<ViewType>('dashboard');
+  const [detectionMode, setDetectionMode] = useState<'select_source' | 'camera_direct'>('select_source');
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isDarkModeLoaded, setIsDarkModeLoaded] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -71,31 +74,39 @@ export default function FosholApp() {
   const [crops, setCrops] = useState<any[]>(() => {
     if (typeof window !== 'undefined') {
       const cached = localStorage.getItem('crops_cache');
-      if (cached) return JSON.parse(cached);
+      if (cached && cached !== 'undefined') return JSON.parse(cached);
     }
     return [];
   });
   const [tasks, setTasks] = useState<any[]>(() => {
     if (typeof window !== 'undefined') {
       const cached = localStorage.getItem('tasks_cache');
-      if (cached) return JSON.parse(cached);
+      if (cached && cached !== 'undefined') return JSON.parse(cached);
     }
     return [];
   });
   const [lands, setLands] = useState<any[]>(() => {
     if (typeof window !== 'undefined') {
       const cached = localStorage.getItem('lands_cache');
-      if (cached) return JSON.parse(cached);
+      if (cached && cached !== 'undefined') return JSON.parse(cached);
     }
     return [];
   });
   const [isLoadingData, setIsLoadingData] = useState(() => {
     if (typeof window !== 'undefined') {
-      return !localStorage.getItem('crops_cache');
+      return !localStorage.getItem('crops_cache') || localStorage.getItem('crops_cache') === 'undefined';
     }
     return true;
   });
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
+  const [user, setUser] = useState<any>(() => {
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem('user_cache');
+      if (cached && cached !== 'undefined') return JSON.parse(cached);
+    }
+    return null;
+  });
 
   const fetchDashboardData = async () => {
     try {
@@ -125,6 +136,10 @@ export default function FosholApp() {
       const fetchedLands = await fetchApi('/lands', { requireAuth: true });
       setLands(fetchedLands);
       localStorage.setItem('lands_cache', JSON.stringify(fetchedLands));
+      
+      const fetchedUser = await fetchApi('/user', { requireAuth: true });
+      setUser(fetchedUser);
+      localStorage.setItem('user_cache', JSON.stringify(fetchedUser));
 
       const fetchedNotifs = await fetchApi('/notifications', { requireAuth: true });
       const formattedNotifs = fetchedNotifs.map((n: any) => {
@@ -153,6 +168,12 @@ export default function FosholApp() {
 
   const handleDeleteCrop = (id: number) => {
     setCropToDelete(id);
+  };
+
+  const handleUpdateCropHealth = (cropId: number, status: string) => {
+    const updatedCrops = crops.map(c => c.id === cropId ? { ...c, healthStatus: status } : c);
+    setCrops(updatedCrops);
+    localStorage.setItem('crops_cache', JSON.stringify(updatedCrops));
   };
 
   const confirmDeleteCrop = async () => {
@@ -276,7 +297,7 @@ export default function FosholApp() {
 
   return (
     <div className={`flex justify-center min-h-screen bg-stone-50 dark:bg-stone-950 items-center font-sans transition-colors duration-300`}>
-      <div className="w-full bg-stone-50 dark:bg-stone-900 overflow-hidden flex flex-col min-h-screen relative transition-colors duration-300">
+      <div className="w-full bg-stone-50 dark:bg-stone-900 flex flex-col min-h-screen relative transition-colors duration-300">
 
         {/* App Header */}
         <header className="sticky top-0 w-full px-4 py-3 bg-emerald-700 dark:bg-emerald-900 text-white flex justify-between items-center z-50 shadow-md shrink-0">
@@ -363,43 +384,48 @@ export default function FosholApp() {
         <main className="flex-1 overflow-y-auto overflow-x-hidden relative scroll-smooth bg-stone-50 dark:bg-stone-900 pb-28">
           <AnimatePresence mode="wait" initial={false}>
             {activeView === 'dashboard' && <DashboardView key="dashboard" crops={crops} tasks={tasks} lands={lands} toggleTask={toggleTask} onViewCropProgress={() => setActiveView('crop_progress')} onDeleteCrop={handleDeleteCrop} />}
-            {activeView === 'ai' && <AIToolsView key="ai" onOpenPrediction={() => setActiveView('price_prediction')} onOpenChatbot={() => setActiveView('chatbot')} onOpenFertilizer={() => setActiveView('fertilizer_ai')} />}
+            {activeView === 'ai' && <AIToolsView key="ai" onOpenPrediction={() => setActiveView('price_prediction')} onOpenChatbot={() => setActiveView('chatbot')} onOpenFertilizer={() => setActiveView('fertilizer_ai')} onOpenDiseaseDetection={() => { setDetectionMode('select_source'); setActiveView('disease_detection'); }} onOpenQuickScan={() => { setDetectionMode('camera_direct'); setActiveView('disease_detection'); }} />}
             {activeView === 'chatbot' && <ChatbotView key="chatbot" onBack={() => setActiveView('ai')} contextData={{ crops, tasks, lands }} />}
             {activeView === 'fertilizer_ai' && <FertilizerAIView key="fertilizer_ai" onBack={() => setActiveView('ai')} crops={crops} lands={lands} />}
             {activeView === 'calendar' && <CalendarView key="calendar" tasks={tasks} toggleTask={toggleTask} />}
-            {activeView === 'profile' && <ProfileView key="profile" crops={crops} lands={lands} onEdit={() => setActiveView('edit_profile')} onSignOut={handleSignOut} fetchDashboardData={fetchDashboardData} />}
-            {activeView === 'edit_profile' && <EditProfileView key="edit_profile" onBack={() => setActiveView('profile')} onSave={() => { setProfileAlert('Profile updated successfully'); setActiveView('profile'); setTimeout(() => setProfileAlert(''), 3000); }} />}
+            {activeView === 'profile' && <ProfileView key="profile" user={user} crops={crops} lands={lands} onEdit={() => setActiveView('edit_profile')} onSignOut={handleSignOut} fetchDashboardData={fetchDashboardData} onNotificationsClick={() => setActiveView('notification_preferences')} onHelpClick={() => setActiveView('help_support')} />}
+            {activeView === 'edit_profile' && <EditProfileView key="edit_profile" user={user} onBack={() => setActiveView('profile')} onSave={() => { fetchDashboardData(); setProfileAlert('Profile updated successfully'); setActiveView('profile'); setTimeout(() => setProfileAlert(''), 3000); }} />}
+            {activeView === 'notification_preferences' && <NotificationPreferencesView key="notification_preferences" user={user} onBack={() => setActiveView('profile')} onSave={() => { fetchDashboardData(); }} />}
+            {activeView === 'help_support' && <HelpSupportView key="help_support" onBack={() => setActiveView('profile')} />}
             {activeView === 'add_crop' && <AddCropView key="add_crop" lands={lands} onBack={() => setActiveView('dashboard')} onSave={() => { fetchDashboardData(); setActiveView('dashboard'); }} />}
             {activeView === 'add_task' && <AddTaskView key="add_task" onBack={() => setActiveView('dashboard')} onSave={() => setActiveView('dashboard')} />}
             {activeView === 'crop_progress' && <CropProgressView key="crop_progress" crops={crops} onBack={() => setActiveView('dashboard')} onDeleteCrop={handleDeleteCrop} />}
             {activeView === 'price_prediction' && <PricePredictionView key="price_prediction" onBack={() => setActiveView('ai')} crops={crops} />}
+            {activeView === 'disease_detection' && <DiseaseDetectionView key="disease_detection" mode={detectionMode} crops={crops} onBack={() => setActiveView('ai')} onSaveHealth={handleUpdateCropHealth} />}
           </AnimatePresence>
         </main>
 
         {/* FAB Menu */}
-        <div className="fixed bottom-24 right-6 z-40 flex flex-col items-end gap-3">
-          <AnimatePresence>
-            {showFabMenu && (
-              <motion.div
-                initial={{ opacity: 0, y: 20, scale: 0.8 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 20, scale: 0.8 }}
-                className="flex flex-col gap-3 mb-2"
-              >
-                <FabMenuItem icon={<Sprout className="w-5 h-5" />} label="Add Crop" onClick={() => { setActiveView('add_crop'); setShowFabMenu(false); }} />
-                <FabMenuItem icon={<FileText className="w-5 h-5" />} label="Add Task" onClick={() => { setActiveView('add_task'); setShowFabMenu(false); }} />
-                <FabMenuItem icon={<Calendar className="w-5 h-5" />} label="Schedule" onClick={() => { setActiveView('calendar'); setShowFabMenu(false); }} />
-                <FabMenuItem icon={<MoreHorizontal className="w-5 h-5" />} label="Others" onClick={() => { setShowFabMenu(false); }} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-          <button
-            onClick={() => setShowFabMenu(!showFabMenu)}
-            className={`w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg shadow-emerald-600/30 transition-transform duration-300 ${showFabMenu ? 'bg-red-500 rotate-45' : 'bg-emerald-600'}`}
-          >
-            <Plus className="w-7 h-7" />
-          </button>
-        </div>
+        {activeView === 'dashboard' && (
+          <div className="fixed bottom-24 right-6 z-40 flex flex-col items-end gap-3">
+            <AnimatePresence>
+              {showFabMenu && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20, scale: 0.8 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 20, scale: 0.8 }}
+                  className="flex flex-col gap-3 mb-2"
+                >
+                  <FabMenuItem icon={<Sprout className="w-5 h-5" />} label="Add Crop" onClick={() => { setActiveView('add_crop'); setShowFabMenu(false); }} />
+                  <FabMenuItem icon={<FileText className="w-5 h-5" />} label="Add Task" onClick={() => { setActiveView('add_task'); setShowFabMenu(false); }} />
+                  <FabMenuItem icon={<Calendar className="w-5 h-5" />} label="Schedule" onClick={() => { setActiveView('calendar'); setShowFabMenu(false); }} />
+                  <FabMenuItem icon={<MoreHorizontal className="w-5 h-5" />} label="Others" onClick={() => { setShowFabMenu(false); }} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <button
+              onClick={() => setShowFabMenu(!showFabMenu)}
+              className={`w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg shadow-emerald-600/30 transition-transform duration-300 ${showFabMenu ? 'bg-red-500 rotate-45' : 'bg-emerald-600'}`}
+            >
+              <Plus className="w-7 h-7" />
+            </button>
+          </div>
+        )}
 
         {/* Bottom Navigation Bar */}
         {(activeView === 'dashboard' || activeView === 'ai' || activeView === 'calendar' || activeView === 'profile') && (
@@ -464,7 +490,7 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
   const [weatherData, setWeatherData] = useState<{ temp: number | null, condition: string, location: string, rainChance3Hr: number | null, rainChanceToday: number | null, loading: boolean, error: string }>(() => {
     if (typeof window !== 'undefined') {
       const cached = localStorage.getItem('weather_cache');
-      if (cached) return { ...JSON.parse(cached), loading: false };
+      if (cached && cached !== 'undefined') return { ...JSON.parse(cached), loading: false };
     }
     return {
       temp: null,
@@ -504,38 +530,49 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
       try {
         const { Capacitor } = await import('@capacitor/core');
         let lat, lon;
-        
+
         if (Capacitor.isNativePlatform()) {
           const { Geolocation } = await import('@capacitor/geolocation');
-          
+
           let permission = await Geolocation.checkPermissions();
           if (permission.location !== 'granted') {
-             const request = await Geolocation.requestPermissions();
-             if (request.location !== 'granted') {
-                setWeatherData(prev => ({ ...prev, loading: false, error: 'Location permission denied' }));
-                return;
-             }
+            const request = await Geolocation.requestPermissions();
+            if (request.location !== 'granted') {
+              setWeatherData(prev => ({ ...prev, loading: false, error: 'Location permission denied' }));
+              return;
+            }
           }
-          
+
           const position = await Geolocation.getCurrentPosition({ timeout: 10000, enableHighAccuracy: true });
           lat = position.coords.latitude;
           lon = position.coords.longitude;
+          console.log('Native geolocation success:', lat, lon);
         } else {
           if (!navigator.geolocation) {
             setWeatherData(prev => ({ ...prev, loading: false, error: 'Geolocation not supported' }));
             return;
           }
-          
+
           const getPos = () => new Promise<GeolocationPosition>((resolve, reject) => {
-             navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
           });
-          
-          const position = await getPos();
-          lat = position.coords.latitude;
-          lon = position.coords.longitude;
+
+          try {
+            const position = await getPos();
+            lat = position.coords.latitude;
+            lon = position.coords.longitude;
+            console.log('Web geolocation success:', lat, lon);
+          } catch (err: any) {
+            console.warn('Web geolocation failed, using fallback location (Dhaka).', err.message);
+            // Fallback to Dhaka, Bangladesh for development testing
+            lat = 23.8103;
+            lon = 90.4125;
+          }
         }
 
+        console.log('Calling weather API with lat:', lat, 'lon:', lon);
         const data = await fetchApi(`/weather?lat=${lat}&lon=${lon}`, { requireAuth: true });
+        console.log('Weather API response:', data);
 
         const newData = {
           temp: data.temp,
@@ -564,8 +601,9 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
         } catch (e) {
           console.error('Failed to sync device info', e);
         }
-      } catch (error) {
-        setWeatherData(prev => ({ ...prev, loading: false, error: 'Failed to fetch weather or location' }));
+      } catch (error: any) {
+        console.error('Weather fetch error:', error);
+        setWeatherData(prev => ({ ...prev, loading: false, error: error.message || 'Failed to fetch weather or location' }));
       }
     };
 
@@ -757,14 +795,20 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
                   <div className="relative z-10 flex flex-col gap-4">
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-4">
-                        <div className={`w-16 h-16 rounded-[1.5rem] flex items-center justify-center text-lg border shadow-sm ${theme.bgPill} ${theme.borderIcon}`}>
+                        <div className={`w-16 h-16 rounded-[1.5rem] text-[45px] flex items-center justify-center text-lg border shadow-sm ${theme.bgPill} ${theme.borderIcon}`}>
                           {crop.emoji || '🌾'}
                         </div>
                         <div>
-                          <h4 className="font-bold text-stone-900 dark:text-stone-100 text-lg tracking-tight">{crop.land?.name || crop.name}</h4>
+                          <h4 className="font-bold text-stone-900 dark:text-stone-100 text-lg tracking-tight">{crop.land?.type || crop.type}</h4>
                           <div className="flex items-center gap-1.5 mt-1 text-sm font-medium text-stone-500 dark:text-stone-400">
-                            <MapPin className="w-3.5 h-3.5" /> {crop.type} {crop.land?.area ? `• ${crop.land.area} Acres` : ''}
+                            <MapPin className="w-3.5 h-3.5" /> {crop.name} {crop.land?.area ? `• ${crop.land.area} Acres` : ''}
                           </div>
+                          {crop.healthStatus && (
+                            <div className={`mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold ${crop.healthStatus === 'Good health' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'}`}>
+                              {crop.healthStatus === 'Good health' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Info className="w-3.5 h-3.5" />}
+                              {crop.healthStatus}
+                            </div>
+                          )}
                         </div>
                       </div>
                       <button onClick={() => onDeleteCrop(crop.id)} className="p-2.5 rounded-xl bg-white dark:bg-stone-800 border border-stone-100 dark:border-stone-700 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors shadow-sm">
@@ -791,8 +835,9 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
                             Day {diffDays} <span className="text-stone-400 text-sm font-medium">/ {totalDays}</span>
                           </span>
                         </div>
-                        <div className={`px-3 py-1.5 rounded-lg text-xs font-bold ${theme.bgPill} ${theme.textPill}`}>
-                          Good Health
+                        <div className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 ${crop.healthStatus && crop.healthStatus !== 'Good health' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400' : `${theme.bgPill} ${theme.textPill}`}`}>
+                          {crop.healthStatus && crop.healthStatus !== 'Good health' ? <Info className="w-3.5 h-3.5" /> : null}
+                          {crop.healthStatus && crop.healthStatus !== 'Good health' ? crop.healthStatus : 'Good Health'}
                         </div>
                       </div>
 
@@ -859,7 +904,7 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
   );
 }
 
-function AIToolsView({ onOpenPrediction, onOpenChatbot, onOpenFertilizer }: { onOpenPrediction?: () => void, onOpenChatbot?: () => void, onOpenFertilizer?: () => void }) {
+function AIToolsView({ onOpenPrediction, onOpenChatbot, onOpenFertilizer, onOpenDiseaseDetection, onOpenQuickScan }: { onOpenPrediction?: () => void, onOpenChatbot?: () => void, onOpenFertilizer?: () => void, onOpenDiseaseDetection?: () => void, onOpenQuickScan?: () => void }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
@@ -868,7 +913,7 @@ function AIToolsView({ onOpenPrediction, onOpenChatbot, onOpenFertilizer }: { on
       <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100 mb-6">AI Solutions</h2>
 
       <div className="grid grid-cols-2 gap-4">
-        <ToolCard title="Disease Detection" desc="Scan leaves for diseases" icon={<ScanLine className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />} color="bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800" />
+        <ToolCard title="Disease Detection" desc="Scan leaves for diseases" icon={<ScanLine className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />} color="bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800" onClick={onOpenDiseaseDetection} />
         <ToolCard title="Price Prediction" desc="Market price forecasting" icon={<TrendingUp className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />} color="bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 dark:border-indigo-800" onClick={onOpenPrediction} />
         <ToolCard title="Fertilizer AI" desc="Smart soil recommendations" icon={<Droplets className="w-6 h-6 text-cyan-600 dark:text-cyan-400" />} color="bg-cyan-50 dark:bg-cyan-900/20 border-cyan-100 dark:border-cyan-800" onClick={onOpenFertilizer} />
         <ToolCard title="Agri Chatbot" desc="Ask anything about farming" icon={<MessageSquare className="w-6 h-6 text-orange-600 dark:text-orange-400" />} color="bg-orange-50 dark:bg-orange-900/20 border-orange-100 dark:border-orange-800" onClick={onOpenChatbot} />
@@ -884,7 +929,7 @@ function AIToolsView({ onOpenPrediction, onOpenChatbot, onOpenFertilizer }: { on
             <h3 className="font-bold text-lg">Quick Scan</h3>
           </div>
           <p className="text-sm text-stone-300 leading-relaxed">Instantly diagnose plant diseases using your camera and our AI model. Get immediate treatment suggestions.</p>
-          <button className="bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-3 px-5 rounded-xl text-sm w-full shadow-lg shadow-emerald-500/30 transition-colors mt-2 flex items-center justify-center gap-2">
+          <button onClick={onOpenQuickScan} className="bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-3 px-5 rounded-xl text-sm w-full shadow-lg shadow-emerald-500/30 transition-colors mt-2 flex items-center justify-center gap-2">
             <ScanLine className="w-4 h-4" /> Open Camera
           </button>
         </div>
@@ -1109,8 +1154,8 @@ function FertilizerAIView({ onBack, crops, lands }: { onBack: () => void, crops:
                         {crop.emoji || '🌱'}
                       </div>
                       <div>
-                        <h4 className="font-bold text-stone-900 dark:text-stone-100">{crop.land?.name || crop.name}</h4>
-                        <p className="text-xs font-medium text-stone-500 dark:text-stone-400">{crop.type} {crop.land?.area ? `• ${crop.land.area} acres` : ''}</p>
+                        <h4 className="font-bold text-stone-900 dark:text-stone-100">{crop.land?.type || crop.type}</h4>
+                        <p className="text-xs font-medium text-stone-500 dark:text-stone-400">{crop.name} {crop.land?.area ? `• ${crop.land.area} acres` : ''}</p>
                       </div>
                     </div>
                     <ArrowRight className="w-5 h-5 text-stone-400 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors" />
@@ -1603,7 +1648,7 @@ function CalendarView({ tasks, toggleTask }: { tasks: any[], toggleTask: (id: nu
   );
 }
 
-function ProfileView({ lands, crops, onEdit, onSignOut, fetchDashboardData }: { lands: any[], crops: any[], onEdit: () => void, onSignOut: () => void, fetchDashboardData: () => void }) {
+function ProfileView({ user, lands, crops, onEdit, onSignOut, fetchDashboardData, onNotificationsClick, onHelpClick }: { user: any, lands: any[], crops: any[], onEdit: () => void, onSignOut: () => void, fetchDashboardData: () => void, onNotificationsClick: () => void, onHelpClick: () => void }) {
   const [landToDelete, setLandToDelete] = useState<any | null>(null);
   const [landToEdit, setLandToEdit] = useState<any | null>(null);
   const [editLandName, setEditLandName] = useState('');
@@ -1638,7 +1683,7 @@ function ProfileView({ lands, crops, onEdit, onSignOut, fetchDashboardData }: { 
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-      className="p-3 md:p-4"
+      className="p-3 md:p-4 pb-24 h-full overflow-y-auto"
     >
       <div className="flex flex-col items-center text-center mb-8 pt-4 relative">
         <button onClick={onEdit} className="absolute top-0 right-0 p-2 bg-white dark:bg-stone-800 rounded-full shadow-sm text-stone-500 hover:text-emerald-600 transition-colors">
@@ -1649,10 +1694,10 @@ function ProfileView({ lands, crops, onEdit, onSignOut, fetchDashboardData }: { 
             <User className="w-12 h-12 text-emerald-600 dark:text-emerald-400" />
           </div>
         </div>
-        <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100 tracking-tight">Karim Mia</h2>
+        <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100 tracking-tight">{user?.name || 'Farmer'}</h2>
         <p className="text-stone-500 dark:text-stone-400 font-medium text-sm flex items-center justify-center gap-1.5 mt-2 bg-stone-100 dark:bg-stone-800 py-1.5 px-4 rounded-full">
           <MapPin className="w-3.5 h-3.5" />
-          Natore, Rajshahi
+          {user?.location || 'Unknown Location'}
         </p>
       </div>
 
@@ -1699,16 +1744,16 @@ function ProfileView({ lands, crops, onEdit, onSignOut, fetchDashboardData }: { 
             ))}
           </div>
         ) : (
-          <div className="bg-stone-50 dark:bg-stone-800 rounded-[2rem] p-3 text-center text-stone-500 text-sm">
-            No lands added yet.
+          <div className="text-center py-6 bg-white dark:bg-stone-800 rounded-2xl border border-stone-100 dark:border-stone-700">
+            <p className="text-stone-500">No lands added yet.</p>
           </div>
         )}
       </div>
 
       <div className="space-y-3 bg-white dark:bg-stone-800 p-2 rounded-[2rem] border border-stone-100 dark:border-stone-700 shadow-sm">
         <ProfileListItem icon={<User className="w-5 h-5 text-stone-600 dark:text-stone-400" />} label="Personal Details" onClick={onEdit} />
-        <ProfileListItem icon={<Bell className="w-5 h-5 text-stone-600 dark:text-stone-400" />} label="Notification Preferences" />
-        <ProfileListItem icon={<MessageSquare className="w-5 h-5 text-stone-600 dark:text-stone-400" />} label="Help & Support" />
+        <ProfileListItem icon={<Bell className="w-5 h-5 text-stone-600 dark:text-stone-400" />} label="Notification Preferences" onClick={onNotificationsClick} />
+        <ProfileListItem icon={<MessageSquare className="w-5 h-5 text-stone-600 dark:text-stone-400" />} label="Help & Support" onClick={onHelpClick} />
         <ProfileListItem icon={<LogOut className="w-5 h-5 text-red-500" />} label="Sign Out" isDestructive onClick={onSignOut} />
       </div>
 
@@ -1836,7 +1881,27 @@ function ProfileView({ lands, crops, onEdit, onSignOut, fetchDashboardData }: { 
 // Sub Views (Edit Profile, Add Crop, Add Task)
 // ---------------------------------------------------------
 
-function EditProfileView({ onBack, onSave }: { onBack: () => void, onSave: () => void }) {
+function EditProfileView({ user, onBack, onSave }: { user: any, onBack: () => void, onSave: () => void }) {
+  const [name, setName] = useState(user?.name || '');
+  const [location, setLocation] = useState(user?.location || '');
+  const [phone, setPhone] = useState(user?.phone || '');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await fetchApi('/user', {
+        method: 'PUT',
+        requireAuth: true,
+        body: JSON.stringify({ name, location, phone })
+      });
+      onSave();
+    } catch (e: any) {
+      alert('Failed to update profile: ' + e.message);
+    }
+    setIsSaving(false);
+  };
+
   return (
     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="h-full bg-white dark:bg-stone-900 flex flex-col absolute inset-0 z-30">
       <header className="px-5 py-4 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between bg-white dark:bg-stone-900">
@@ -1860,22 +1925,132 @@ function EditProfileView({ onBack, onSave }: { onBack: () => void, onSave: () =>
         <div className="space-y-5">
           <div>
             <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Full Name</label>
-            <input type="text" defaultValue="Karim Mia" className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
+            <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
           </div>
           <div>
             <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Location</label>
-            <input type="text" defaultValue="Natore, Rajshahi" className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
+            <input type="text" value={location} onChange={e => setLocation(e.target.value)} className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
           </div>
           <div>
             <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Phone Number</label>
-            <input type="tel" defaultValue="+880 1711 223344" className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
+            <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
           </div>
         </div>
       </div>
-      <div className="p-3 border-t border-stone-100 dark:border-stone-800 bg-white dark:bg-stone-900">
-        <button onClick={onSave} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-600/20 transition-colors">
-          Save Changes
+      <div className="p-3 pb-4 border-t border-stone-100 dark:border-stone-800 bg-white dark:bg-stone-900">
+        <button onClick={handleSave} disabled={isSaving} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-600/20 transition-colors disabled:opacity-50">
+          {isSaving ? 'Saving...' : 'Save Changes'}
         </button>
+      </div>
+    </motion.div>
+  );
+}
+
+function NotificationPreferencesView({ user, onBack, onSave }: { user: any, onBack: () => void, onSave: () => void }) {
+  const [pushEnabled, setPushEnabled] = useState(user?.push_enabled ?? true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    const configureStatusBar = async () => {
+      try {
+        const isDark = document.documentElement.classList.contains('dark');
+        await StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light });
+        await StatusBar.setBackgroundColor({ color: isDark ? '#1c1917' : '#ffffff' });
+      } catch (e) {
+        // Ignore on web/if plugin not available
+      }
+    };
+    configureStatusBar();
+  }, []);
+
+  const togglePush = async () => {
+    const newValue = !pushEnabled;
+    setPushEnabled(newValue);
+    setIsSaving(true);
+    try {
+      await fetchApi('/user', {
+        method: 'PUT',
+        requireAuth: true,
+        body: JSON.stringify({ push_enabled: newValue })
+      });
+      onSave();
+    } catch (e: any) {
+      alert('Failed to update preferences: ' + e.message);
+      setPushEnabled(!newValue); // revert
+    }
+    setIsSaving(false);
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="h-full bg-white dark:bg-stone-900 flex flex-col absolute inset-0 z-30">
+      <header className="px-5 py-4 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between bg-white dark:bg-stone-900">
+        <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-300">
+          <ArrowLeft className="w-6 h-6" />
+        </button>
+        <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100">Notifications</h2>
+        <div className="w-10"></div>
+      </header>
+      <div className="p-4 flex-1 overflow-y-auto">
+        <div className="bg-white dark:bg-stone-800 rounded-2xl p-4 border border-stone-100 dark:border-stone-700 shadow-sm flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-stone-900 dark:text-stone-100">Push Notifications</h3>
+            <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">Receive alerts for tasks and updates</p>
+          </div>
+          <button 
+            onClick={togglePush} 
+            disabled={isSaving}
+            className={`w-12 h-6 rounded-full p-1 transition-colors ${pushEnabled ? 'bg-emerald-500' : 'bg-stone-300 dark:bg-stone-600'}`}
+          >
+            <div className={`w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform ${pushEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function HelpSupportView({ onBack }: { onBack: () => void }) {
+  const contacts = [
+    { name: 'Shoaib Bin Habib', id: '2312448042', email: 'shoaib.habib@northsouth.edu', phone: '01636347684' },
+    { name: 'S.M. Tahmid Abir', id: '2311015042', email: 'sm.abir@northsouth.edu', phone: '01906055664' },
+    { name: 'Mohammad Sofwan Islam', id: '2231769642', email: 'sofwan.islam@northsouth.edu' }
+  ];
+
+  return (
+    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="h-full bg-white dark:bg-stone-900 flex flex-col absolute inset-0 z-30">
+      <header className="px-5 py-4 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between bg-white dark:bg-stone-900">
+        <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-300">
+          <ArrowLeft className="w-6 h-6" />
+        </button>
+        <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100">Help & Support</h2>
+        <div className="w-10"></div>
+      </header>
+      <div className="p-4 flex-1 overflow-y-auto space-y-4">
+        <p className="text-sm text-stone-500 dark:text-stone-400 mb-6 px-1">If you need assistance, please reach out to any of our support members below.</p>
+        
+        {contacts.map((contact, i) => (
+          <div key={i} className="bg-white dark:bg-stone-800 p-4 rounded-2xl border border-stone-100 dark:border-stone-700 shadow-sm">
+            <h3 className="font-bold text-stone-900 dark:text-stone-100 mb-1">{contact.name}</h3>
+            <p className="text-xs text-stone-500 dark:text-stone-400 mb-3">ID: {contact.id}</p>
+            
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm text-stone-600 dark:text-stone-300">
+                <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-stone-700 flex items-center justify-center text-stone-500">
+                  <span className="text-xs font-bold">@</span>
+                </div>
+                {contact.email}
+              </div>
+              {contact.phone && (
+                <div className="flex items-center gap-2 text-sm text-stone-600 dark:text-stone-300">
+                  <div className="w-8 h-8 rounded-full bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center text-emerald-600">
+                    <span className="text-xs font-bold">WA</span>
+                  </div>
+                  {contact.phone}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
     </motion.div>
   );
@@ -2172,7 +2347,7 @@ function AddCropView({ lands, onBack, onSave }: { lands: any[], onBack: () => vo
         </div>
       )}
 
-      <div className="p-3 border-t border-stone-100 dark:border-stone-800 bg-white dark:bg-stone-900">
+      <div className="p-3 pb-4 border-t border-stone-100 dark:border-stone-800 bg-white dark:bg-stone-900">
         {!reviewData ? (
           <button onClick={handleGenerate} disabled={isGenerating} className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-70 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2">
             {isGenerating ? 'Analyzing with AI...' : 'Analyze & Generate Schedule'}
@@ -2503,6 +2678,7 @@ function CropProgressView({ crops, onBack, onDeleteCrop }: { crops: any[], onBac
 
           let currentPhaseName = 'Sown';
           if (crop.phases && crop.phases.length > 0) {
+            currentPhaseName = crop.phases[crop.phases.length - 1].name;
             let accDays = 0;
             for (let i = 0; i < crop.phases.length; i++) {
               accDays += Number(crop.phases[i].days_count);
@@ -2529,7 +2705,7 @@ function CropProgressView({ crops, onBack, onDeleteCrop }: { crops: any[], onBac
                 <div className="flex-1">
                   <div className="flex items-start justify-between mb-6">
                     <div className="flex items-center gap-4">
-                      <div className={`w-16 h-16 rounded-[1.5rem] flex items-center justify-center text-lg border shadow-sm ${theme.bgPill} ${theme.borderIcon}`}>
+                      <div className={`w-16 h-16 rounded-[1.5rem] text-[45px] flex items-center justify-center text-lg border shadow-sm ${theme.bgPill} ${theme.borderIcon}`}>
                         {crop.emoji || '🌾'}
                       </div>
                       <div>
@@ -2564,8 +2740,9 @@ function CropProgressView({ crops, onBack, onDeleteCrop }: { crops: any[], onBac
                         Day {diffDays} <span className="text-stone-400 text-base font-medium">/ {totalDays}</span>
                       </span>
                     </div>
-                    <div className={`px-4 py-2 rounded-xl text-xs font-bold ${theme.bgPill} ${theme.textPill}`}>
-                      Good Health
+                    <div className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 ${crop.healthStatus === 'Good health' || !crop.healthStatus ? `${theme.bgPill} ${theme.textPill}` : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'}`}>
+                      {crop.healthStatus && crop.healthStatus !== 'Good health' ? <Info className="w-4 h-4" /> : null}
+                      {crop.healthStatus && crop.healthStatus !== 'Good health' ? crop.healthStatus : 'Good Health'}
                     </div>
                   </div>
 
@@ -2819,6 +2996,170 @@ function PricePredictionView({ onBack, crops }: { onBack: () => void, crops: any
               </div>
             )}
           </motion.div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+function DiseaseDetectionView({ mode, crops, onBack, onSaveHealth }: { mode: 'select_source' | 'camera_direct', crops: any[], onBack: () => void, onSaveHealth: (cropId: number, status: string) => void }) {
+  const [selectedCrop, setSelectedCrop] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [result, setResult] = useState<{ isHealthy: boolean, diseaseName?: string, imageBase64?: string } | null>(null);
+  const [isSolving, setIsSolving] = useState(false);
+  const [solution, setSolution] = useState<string | null>(null);
+
+  const handleScan = async (source: CameraSource) => {
+    if (!selectedCrop) return;
+    try {
+      const image = await Camera.getPhoto({
+        quality: 90,
+        allowEditing: false,
+        resultType: CameraResultType.Base64,
+        source: source
+      });
+
+      if (image.base64String) {
+        setIsLoading(true);
+        const crop = crops.find(c => c.id === selectedCrop);
+        
+        const response = await fetchApi('/disease-detection', {
+          method: 'POST',
+          requireAuth: true,
+          body: JSON.stringify({
+            image: `data:image/jpeg;base64,${image.base64String}`,
+            cropType: crop?.type || 'unknown'
+          })
+        });
+
+        if (response) {
+          const data = response;
+          setResult({
+            isHealthy: data.isHealthy,
+            diseaseName: data.healthStatus === 'Good health' ? undefined : data.healthStatus,
+            imageBase64: `data:image/jpeg;base64,${image.base64String}`
+          });
+          onSaveHealth(selectedCrop, data.healthStatus);
+        } else {
+          alert("Failed to analyze image.");
+        }
+      }
+    } catch (error) {
+      console.error("Camera error:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFindSolution = async () => {
+    if (!result?.diseaseName || !selectedCrop) return;
+    setIsSolving(true);
+    try {
+      const crop = crops.find(c => c.id === selectedCrop);
+      const res = await fetchApi('/ai/disease-solution', {
+        method: 'POST',
+        requireAuth: true,
+        body: JSON.stringify({
+          diseaseName: result.diseaseName,
+          cropType: crop?.type || 'unknown'
+        })
+      });
+      if (res && res.solution) {
+        setSolution(res.solution);
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Failed to find solution.");
+    } finally {
+      setIsSolving(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedCrop && mode === 'camera_direct' && !isLoading && !result) {
+      handleScan(CameraSource.Camera);
+    }
+  }, [selectedCrop, mode, isLoading, result]);
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="h-full bg-stone-50 dark:bg-stone-950 flex flex-col absolute inset-0 z-30">
+      <header className="px-5 py-4 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between bg-white/80 dark:bg-stone-900/80 backdrop-blur-md sticky top-0 z-40">
+        <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-300 transition-colors">
+          <ArrowLeft className="w-6 h-6" />
+        </button>
+        <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100">Disease Detection</h2>
+        <div className="w-10"></div>
+      </header>
+
+      <div className="p-5 flex-1 flex flex-col items-center justify-center overflow-y-auto">
+        {isLoading ? (
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="w-12 h-12 text-emerald-500 animate-spin" />
+            <p className="text-stone-600 dark:text-stone-400 font-medium">Analyzing plant health...</p>
+          </div>
+        ) : result ? (
+          <div className="flex flex-col items-center gap-6 w-full max-w-sm pb-10">
+            {result.imageBase64 && (
+              <div className="w-full h-48 rounded-2xl overflow-hidden shadow-md">
+                <img src={result.imageBase64} alt="Crop scan" className="w-full h-full object-cover" />
+              </div>
+            )}
+            
+            <div className={`w-full p-6 rounded-2xl flex flex-col items-center ${result.isHealthy ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300' : 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300'}`}>
+              <div className="flex flex-col items-center text-center">
+                <h3 className="text-2xl font-black">{result.isHealthy ? 'Healthy Crop' : 'Disease Detected'}</h3>
+                <p className="mt-2 font-medium opacity-90">{result.isHealthy ? 'Your crop looks to be in great condition. Keep up the good work!' : `Likely diagnosis: ${result.diseaseName}`}</p>
+              </div>
+            </div>
+
+            {!result.isHealthy && result.diseaseName && !solution && (
+              <button onClick={handleFindSolution} disabled={isSolving} className="w-full bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-bold py-4 rounded-xl shadow-lg flex justify-center items-center gap-2 transition">
+                {isSolving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+                {isSolving ? 'Generating Treatment Plan...' : 'Find Solution with AI'}
+              </button>
+            )}
+
+            {solution && (
+              <div className="w-full bg-white dark:bg-stone-900 rounded-2xl p-5 shadow-sm border border-stone-200 dark:border-stone-800">
+                <h4 className="font-bold text-stone-900 dark:text-stone-100 mb-3 flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-cyan-500" /> Treatment Plan
+                </h4>
+                <p className="text-sm text-stone-600 dark:text-stone-400 whitespace-pre-wrap leading-relaxed">{solution}</p>
+              </div>
+            )}
+
+            <button onClick={onBack} className="mt-2 bg-stone-900 dark:bg-white text-white dark:text-stone-900 font-bold py-3.5 px-8 rounded-xl w-full">Back to AI Tools</button>
+          </div>
+        ) : !selectedCrop ? (
+          <div className="w-full max-w-sm flex flex-col gap-4">
+            <h3 className="text-xl font-bold text-stone-900 dark:text-stone-100 text-center mb-4">Select a Crop</h3>
+            {crops.length === 0 ? (
+              <p className="text-stone-500 text-center">No crops added yet.</p>
+            ) : (
+              crops.map(c => (
+                <button key={c.id} onClick={() => setSelectedCrop(c.id)} className="w-full p-4 bg-white dark:bg-stone-900 border border-stone-100 dark:border-stone-800 rounded-2xl flex items-center gap-4 shadow-sm text-left hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors">
+                  <div className="text-2xl">{c.emoji || '🌱'}</div>
+                  <div className="flex-1">
+                    <div className="font-bold text-stone-900 dark:text-stone-100">{c.type}</div>
+                    <div className="text-xs text-stone-500">{c.name}</div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-stone-400" />
+                </button>
+              ))
+            )}
+          </div>
+        ) : (
+          mode === 'select_source' && (
+            <div className="w-full max-w-sm flex flex-col gap-4">
+              <h3 className="text-xl font-bold text-stone-900 dark:text-stone-100 text-center mb-4">Upload Photo</h3>
+              <button onClick={() => handleScan(CameraSource.Camera)} className="w-full p-5 bg-emerald-500 hover:bg-emerald-400 text-white rounded-2xl flex flex-col items-center gap-3 font-bold shadow-lg shadow-emerald-500/20 transition-all">
+                <CameraIcon className="w-8 h-8" /> Take Photo
+              </button>
+              <button onClick={() => handleScan(CameraSource.Photos)} className="w-full p-5 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 text-stone-700 dark:text-stone-300 rounded-2xl flex flex-col items-center gap-3 font-bold hover:bg-stone-50 dark:hover:bg-stone-800 transition-all">
+                <ImageIcon className="w-8 h-8" /> Choose from Gallery
+              </button>
+            </div>
+          )
         )}
       </div>
     </motion.div>

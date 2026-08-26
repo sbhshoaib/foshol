@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\CropController;
 use App\Http\Controllers\Api\LandController;
 use App\Http\Controllers\Api\AiController;
 use App\Http\Controllers\Api\WeatherController;
+use App\Http\Controllers\Api\DiseaseDetectionController;
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/ai/chatbot', [AiController::class, 'chatbot']);
@@ -21,9 +22,28 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/ai/crop-phases', [AiController::class, 'cropPhases']);
     Route::post('/ai/price-prediction', [AiController::class, 'pricePrediction']);
     Route::post('/ai/weather/summary', [AiController::class, 'weatherSummary']);
+    Route::post('/ai/disease-solution', [AiController::class, 'diseaseSolution']);
+    Route::post('/disease-detection', [DiseaseDetectionController::class, 'detect']);
     Route::get('/weather', [WeatherController::class, 'getWeather']);
     Route::get('/user', function (Request $request) {
         return $request->user();
+    });
+    Route::put('/user', function (Request $request) {
+        $validated = $request->validate([
+            'name' => 'nullable|string|max:255',
+            'location' => 'nullable|string|max:255',
+            'phone' => 'nullable|string|max:255',
+            'push_enabled' => 'nullable|boolean',
+        ]);
+        
+        $user = $request->user();
+        if (isset($validated['name'])) $user->name = $validated['name'];
+        if (isset($validated['location'])) $user->location = $validated['location'];
+        if (isset($validated['phone'])) $user->phone = $validated['phone'];
+        if (isset($validated['push_enabled'])) $user->push_enabled = $validated['push_enabled'];
+        $user->save();
+        
+        return $user;
     });
     Route::post('/logout', [AuthController::class, 'logout']);
 

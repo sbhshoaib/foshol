@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Foshol API Test Runner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .loader {
+            border-top-color: #3498db;
+            -webkit-animation: spinner 1.5s linear infinite;
+            animation: spinner 1.5s linear infinite;
+        }
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 p-8 font-sans">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-2">Foshol API Integration Tests</h1>
+        <p class="text-gray-600 mb-8">Run these tests to verify the backend API endpoints. Note: Ensure your Laravel server is running and accessible (e.g. via XAMPP at /foshol/public or php artisan serve).</p>
+        
+        <div class="mb-6">
+            <label class="block text-sm font-bold mb-2">API Base URL</label>
+            <input type="text" id="apiUrl" value="/foshol/public/api" class="w-full md:w-1/2 p-2 border rounded shadow-sm focus:ring-blue-500 focus:border-blue-500">
+            <p class="text-xs text-gray-500 mt-1">Change this to http://localhost:8000/api if using artisan serve.</p>
+        </div>
+
+        <div class="flex gap-4 mb-8">
+            <button onclick="runAllTests()" class="bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-700 shadow">Run All Tests</button>
+            <button onclick="clearResults()" class="bg-gray-200 text-gray-700 px-4 py-2 rounded font-bold hover:bg-gray-300 shadow">Clear Results</button>
+        </div>
+
+        <div id="test-list" class="space-y-4">
+            <!-- Tests will be injected here -->
+        </div>
+    </div>
+
+    <script>
+        let authToken = null;
+        let createdCropId = null;
+        let createdLandId = null;
+        
+        // Random string generator for emails
+        const randomString = () => Math.random().toString(36).substring(2, 10);
+        let testEmail = `test_${randomString()}@example.com`;
+        let testPassword = 'password123';
+
+        const tests = [
+            {
+                id: 1,
+                name: "User Registration",
+                endpoint: "/register",
+                method: "POST",
+                body: () => {
+                    testEmail = `test_${randomString()}@example.com`;
+                    return { name: "Test User", email: testEmail, password: testPassword, password_confirmation: testPassword };
+                },
+                validate: (res) => res.status === 200 || res.status === 201,
+                onSuccess: (data) => { if(data.access_token) authToken = data.access_token; }
+            },
+            {
+                id: 2,
+                name: "User Login",
+                endpoint: "/login",
+                method: "POST",
+                body: () => ({ email: testEmail, password: testPassword }),
+                validate: (res) => res.status === 200,
+                onSuccess: (data) => { if(data.access_token) authToken = data.access_token; }
+            },
+            {
+                id: 3,
+                name: "Invalid Login",
+                endpoint: "/login",
+                method: "POST",
+                body: () => ({ email: testEmail, password: "wrongpassword" }),
+                validate: (res) => res.status === 401 || res.status === 422
+            },
+            {
+                id: 4,
+                name: "Create a Land",
+                endpoint: "/lands",
+                method: "POST",
+                requiresAuth: true,
+                body: () => ({ name: "Test Land", area: 5, location: "Dhaka", type: "Plain" }),
+                validate: (res) => res.status === 200 || res.status === 201,
+                onSuccess: (data) => { if(data.land && data.land.id) createdLandId = data.land.id; }
+            },
+            {
+                id: 5,
+                name: "Fetch User Lands",
+                endpoint: "/lands",
+                method: "GET",
+                requiresAuth: true,
+                validate: (res) => res.status === 200
+            },
+            {
+                id: 6,
+                name: "Create a Crop",
+                endpoint: "/crops",
+                method: "POST",
+                requiresAuth: true,
+                body: () => ({ name: "Test Rice", type: "Rice", start_date: "2024-01-01", land_id: createdLandId, phases: [{name: "Seedling", days_count: 10}, {name: "Vegetative", days_count: 20}] }),
+                validate: (res) => res.status === 200 || res.status === 201,
+                onSuccess: (data) => { if(data.crop && data.crop.id) createdCropId = data.crop.id; }
+            },
+            {
+                id: 7,
+                name: "Fetch User Crops",
+                endpoint: "/crops",
+                method: "GET",
+                requiresAuth: true,
+                validate: (res) => res.status === 200
+            },
+            {
+                id: 8,
+                name: "Disease Detection (Mock/Real API)",
+                endpoint: "/disease-detection",
+                method: "POST",
+                requiresAuth: true,
+                body: () => ({ image: "data:image/jpeg;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", cropType: "Rice" }),
+                validate: (res) => res.status === 200
+            },
+            {
+                id: 9,
+                name: "Weather Summary",
+                endpoint: "/weather?lat=23.8103&lon=90.4125",
+                method: "GET",
+                requiresAuth: true,
+                validate: (res) => res.status === 200
+            },
+            {
+                id: 10,
+                name: "Delete a Crop",
+                endpoint: () => `/crops/${createdCropId}`,
+                method: "DELETE",
+                requiresAuth: true,
+                validate: (res) => res.status === 200 || res.status === 204
+            }
+        ];
+
+        function renderTests() {
+            const list = document.getElementById('test-list');
+            list.innerHTML = tests.map(test => `
+                <div class="bg-white p-5 rounded-xl shadow border border-gray-100 flex flex-col gap-3 transition hover:shadow-md">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <span class="bg-gray-100 text-gray-500 font-bold w-8 h-8 rounded-full flex items-center justify-center">${test.id}</span>
+                            <h3 class="font-bold text-lg">${test.name}</h3>
+                            <span class="text-xs font-mono bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100">${test.method}</span>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span id="status-${test.id}" class="text-sm font-bold px-3 py-1 rounded bg-gray-100 text-gray-500">Pending</span>
+                            <button onclick="toggleCurl(${test.id})" class="bg-white text-gray-700 px-3 py-1.5 rounded font-bold hover:bg-gray-50 border border-gray-200 text-sm shadow-sm transition">
+                                Show PowerShell Code
+                            </button>
+                            <button onclick="runTest(${test.id})" id="btn-${test.id}" class="bg-indigo-600 text-white px-4 py-1.5 rounded font-bold hover:bg-indigo-700 shadow-sm flex items-center gap-2 transition">
+                                Run Test
+                            </button>
+                        </div>
+                    </div>
+                    <div id="curl-container-${test.id}" class="hidden mt-2 bg-gray-900 p-4 rounded-xl border border-gray-800 relative shadow-inner">
+                        <p class="text-xs font-bold text-gray-400 mb-2">PowerShell Command:</p>
+                        <button onclick="copyCurl(${test.id})" class="absolute top-3 right-3 bg-gray-800 text-gray-300 hover:text-white px-3 py-1.5 rounded text-xs border border-gray-700 hover:bg-gray-700 transition font-bold shadow-sm">Copy Code</button>
+                        <pre id="curl-${test.id}" class="text-cyan-400 text-xs overflow-x-auto whitespace-pre-wrap font-mono mt-2 select-all"></pre>
+                    </div>
+                    <div id="response-container-${test.id}" class="hidden mt-2">
+                        <p class="text-xs font-bold text-gray-500 mb-1">Response:</p>
+                        <pre id="response-${test.id}" class="bg-gray-900 text-green-400 p-3 rounded-lg text-xs overflow-x-auto max-h-48 shadow-inner font-mono"></pre>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function runTest(id) {
+            const test = tests.find(t => t.id === id);
+            const statusEl = document.getElementById(`status-${id}`);
+            const btnEl = document.getElementById(`btn-${id}`);
+            const responseContainer = document.getElementById(`response-container-${id}`);
+            const responseEl = document.getElementById(`response-${id}`);
+            const baseUrl = document.getElementById('apiUrl').value.replace(/\/$/, '');
+
+            // Reset UI
+            statusEl.className = "text-sm font-bold px-3 py-1 rounded flex items-center gap-2 text-blue-600 bg-blue-50";
+            statusEl.innerHTML = `<div class="w-3 h-3 border-2 border-blue-600 rounded-full loader"></div> Running...`;
+            btnEl.disabled = true;
+            btnEl.classList.add('opacity-50');
+            responseContainer.classList.remove('hidden');
+            responseEl.innerHTML = "Fetching...";
+
+            try {
+                if (test.requiresAuth && !authToken) {
+                    throw new Error("Missing Auth Token. Please run User Registration (Test 1) first to generate an account and token.");
+                }
+
+                const endpoint = typeof test.endpoint === 'function' ? test.endpoint() : test.endpoint;
+                const url = `${baseUrl}${endpoint}`;
+                const headers = {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                };
+
+                if (test.requiresAuth) {
+                    headers['Authorization'] = `Bearer ${authToken}`;
+                }
+
+                const options = {
+                    method: test.method,
+                    headers: headers
+                };
+
+                if (test.body) {
+                    options.body = JSON.stringify(test.body());
+                }
+
+                const res = await fetch(url, options);
+                let data = null;
+                const contentType = res.headers.get("content-type");
+                
+                if (contentType && contentType.indexOf("application/json") !== -1) {
+                    data = await res.json();
+                } else {
+                    data = await res.text();
+                }
+
+                const isSuccess = test.validate(res);
+
+                if (isSuccess && test.onSuccess) {
+                    test.onSuccess(data);
+                }
+
+                statusEl.className = `text-sm font-bold px-3 py-1 rounded ${isSuccess ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`;
+                statusEl.innerHTML = isSuccess ? '✓ OK' : '✗ Error';
+                responseEl.className = `p-3 rounded-lg text-xs overflow-x-auto max-h-48 shadow-inner ${isSuccess ? 'bg-gray-900 text-green-400' : 'bg-red-950 text-red-400'}`;
+                responseEl.innerHTML = `Status: ${res.status}\n\n` + (typeof data === 'object' ? JSON.stringify(data, null, 2) : data);
+                
+            } catch (err) {
+                statusEl.className = 'text-sm font-bold px-3 py-1 rounded bg-red-100 text-red-700';
+                statusEl.innerHTML = '✗ Error';
+                responseEl.className = 'p-3 rounded-lg text-xs overflow-x-auto max-h-48 shadow-inner bg-red-950 text-red-400';
+                responseEl.innerHTML = `Exception:\n${err.message}`;
+            } finally {
+                btnEl.disabled = false;
+                btnEl.classList.remove('opacity-50');
+            }
+        }
+
+        async function runAllTests() {
+            for (const test of tests) {
+                await runTest(test.id);
+                // Add a small delay between tests
+                await new Promise(r => setTimeout(r, 500));
+            }
+        }
+
+        function clearResults() {
+            renderTests();
+            authToken = null;
+            createdCropId = null;
+            createdLandId = null;
+        }
+
+        function toggleCurl(id) {
+            const container = document.getElementById(`curl-container-${id}`);
+            const curlEl = document.getElementById(`curl-${id}`);
+            
+            if (container.classList.contains('hidden')) {
+                curlEl.innerText = generateCurl(id);
+                container.classList.remove('hidden');
+            } else {
+                container.classList.add('hidden');
+            }
+        }
+
+        function generateCurl(id) {
+            const test = tests.find(t => t.id === id);
+            const baseUrl = document.getElementById('apiUrl').value.replace(/\/$/, '');
+            const endpoint = typeof test.endpoint === 'function' ? test.endpoint() : test.endpoint;
+            
+            // Generate native PowerShell Invoke-RestMethod
+            let ps = `Invoke-RestMethod -Uri "${baseUrl}${endpoint}" -Method ${test.method}`;
+            
+            let headers = `@{"Accept"="application/json"`;
+            if (test.requiresAuth) {
+                headers += `; "Authorization"="Bearer ${authToken || 'YOUR_TOKEN_HERE'}"`;
+            }
+            headers += `}`;
+            
+            ps += ` -Headers ${headers}`;
+
+            if (test.body) {
+                const bodyObj = test.body();
+                // We wrap the JSON strictly in single quotes for PowerShell so we don't have to escape double quotes
+                const jsonStr = JSON.stringify(bodyObj).replace(/'/g, "''");
+                ps += ` -ContentType "application/json" -Body '${jsonStr}'`;
+            }
+
+            return ps;
+        }
+
+        function copyCurl(id) {
+            const curlEl = document.getElementById(`curl-${id}`);
+            navigator.clipboard.writeText(curlEl.innerText).then(() => {
+                const btn = document.querySelector(`#curl-container-${id} button`);
+                const originalText = btn.innerText;
+                btn.innerText = "Copied!";
+                btn.classList.add("bg-green-700", "text-white", "border-green-600");
+                setTimeout(() => {
+                    btn.innerText = originalText;
+                    btn.classList.remove("bg-green-700", "text-white", "border-green-600");
+                }, 2000);
+            });
+        }
+
+        // Initial render
+        renderTests();
+    </script>
+</body>
+</html>

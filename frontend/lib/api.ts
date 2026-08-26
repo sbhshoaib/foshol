@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://syntaxcube.com/foshol/public/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost/foshol/public/api';
 
 interface FetchOptions extends RequestInit {
   requireAuth?: boolean;
@@ -30,6 +30,12 @@ export async function fetchApi(endpoint: string, options: FetchOptions = {}) {
   });
 
   if (!response.ok) {
+    if (response.status === 401 && typeof window !== 'undefined') {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+      throw new Error('Unauthenticated');
+    }
     const errorData = await response.json().catch(() => null);
     throw new Error(errorData?.message || `API request failed with status ${response.status}`);
   }

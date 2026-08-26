@@ -1,0 +1,1572 @@
+﻿diff --git a/frontend/app/page.tsx b/frontend/app/page.tsx
+index cbdcf2f..6559a4e 100644
+--- a/frontend/app/page.tsx
++++ b/frontend/app/page.tsx
+@@ -23,9 +23,11 @@ import { fetchApi } from '../lib/api';
+ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
+ import { PushNotifications } from '@capacitor/push-notifications';
+ import { StatusBar, Style } from '@capacitor/status-bar';
++import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
++import { Camera as CameraIcon, HeartPulse, Upload, Loader2, Info, Sparkles } from 'lucide-react';
+ 
+ // Custom Tab Types
+-type ViewType = 'dashboard' | 'ai' | 'chatbot' | 'fertilizer_ai' | 'calendar' | 'profile' | 'edit_profile' | 'add_crop' | 'add_task' | 'crop_progress' | 'price_prediction';
++type ViewType = 'dashboard' | 'ai' | 'chatbot' | 'fertilizer_ai' | 'calendar' | 'profile' | 'edit_profile' | 'add_crop' | 'add_task' | 'crop_progress' | 'price_prediction' | 'disease_detection';
+ 
+ const cropThemes: any = {
+   slate: { bgGlow: 'from-slate-50 to-white dark:from-slate-900/20 dark:to-stone-900', textAccent: 'text-slate-600 dark:text-slate-400', bgPill: 'bg-slate-100 dark:bg-slate-900/40', textPill: 'text-slate-800 dark:text-slate-300', bgProgress: 'bg-slate-500 dark:bg-slate-400', borderIcon: 'border-slate-100 dark:border-slate-800' },
+@@ -63,6 +65,7 @@ const getCropTheme = (colorStr: string | null) => {
+ export default function FosholApp() {
+   const router = useRouter();
+   const [activeView, setActiveView] = useState<ViewType>('dashboard');
++  const [detectionMode, setDetectionMode] = useState<'select_source' | 'camera_direct'>('select_source');
+   const [isDarkMode, setIsDarkMode] = useState(false);
+   const [isDarkModeLoaded, setIsDarkModeLoaded] = useState(false);
+   const [showNotifications, setShowNotifications] = useState(false);
+@@ -71,32 +74,40 @@ export default function FosholApp() {
+   const [crops, setCrops] = useState<any[]>(() => {
+     if (typeof window !== 'undefined') {
+       const cached = localStorage.getItem('crops_cache');
+-      if (cached) return JSON.parse(cached);
++      if (cached && cached !== 'undefined') return JSON.parse(cached);
+     }
+     return [];
+   });
+   const [tasks, setTasks] = useState<any[]>(() => {
+     if (typeof window !== 'undefined') {
+       const cached = localStorage.getItem('tasks_cache');
+-      if (cached) return JSON.parse(cached);
++      if (cached && cached !== 'undefined') return JSON.parse(cached);
+     }
+     return [];
+   });
+   const [lands, setLands] = useState<any[]>(() => {
+     if (typeof window !== 'undefined') {
+       const cached = localStorage.getItem('lands_cache');
+-      if (cached) return JSON.parse(cached);
++      if (cached && cached !== 'undefined') return JSON.parse(cached);
+     }
+     return [];
+   });
+   const [isLoadingData, setIsLoadingData] = useState(() => {
+     if (typeof window !== 'undefined') {
+-      return !localStorage.getItem('crops_cache');
++      return !localStorage.getItem('crops_cache') || localStorage.getItem('crops_cache') === 'undefined';
+     }
+     return true;
+   });
+   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+ 
++  const [user, setUser] = useState<any>(() => {
++    if (typeof window !== 'undefined') {
++      const cached = localStorage.getItem('user_cache');
++      if (cached && cached !== 'undefined') return JSON.parse(cached);
++    }
++    return null;
++  });
++
+   const fetchDashboardData = async () => {
+     try {
+       const fetchedCrops = await fetchApi('/crops', { requireAuth: true });
+@@ -125,6 +136,10 @@ export default function FosholApp() {
+       const fetchedLands = await fetchApi('/lands', { requireAuth: true });
+       setLands(fetchedLands);
+       localStorage.setItem('lands_cache', JSON.stringify(fetchedLands));
++      
++      const fetchedUser = await fetchApi('/user', { requireAuth: true });
++      setUser(fetchedUser);
++      localStorage.setItem('user_cache', JSON.stringify(fetchedUser));
+ 
+       const fetchedNotifs = await fetchApi('/notifications', { requireAuth: true });
+       const formattedNotifs = fetchedNotifs.map((n: any) => {
+@@ -155,6 +170,12 @@ export default function FosholApp() {
+     setCropToDelete(id);
+   };
+ 
++  const handleUpdateCropHealth = (cropId: number, status: string) => {
++    const updatedCrops = crops.map(c => c.id === cropId ? { ...c, healthStatus: status } : c);
++    setCrops(updatedCrops);
++    localStorage.setItem('crops_cache', JSON.stringify(updatedCrops));
++  };
++
+   const confirmDeleteCrop = async () => {
+     if (cropToDelete !== null) {
+       try {
+@@ -276,7 +297,7 @@ export default function FosholApp() {
+ 
+   return (
+     <div className={`flex justify-center min-h-screen bg-stone-50 dark:bg-stone-950 items-center font-sans transition-colors duration-300`}>
+-      <div className="w-full bg-stone-50 dark:bg-stone-900 overflow-hidden flex flex-col min-h-screen relative transition-colors duration-300">
++      <div className="w-full bg-stone-50 dark:bg-stone-900 flex flex-col min-h-screen relative transition-colors duration-300">
+ 
+         {/* App Header */}
+         <header className="sticky top-0 w-full px-4 py-3 bg-emerald-700 dark:bg-emerald-900 text-white flex justify-between items-center z-50 shadow-md shrink-0">
+@@ -363,43 +384,48 @@ export default function FosholApp() {
+         <main className="flex-1 overflow-y-auto overflow-x-hidden relative scroll-smooth bg-stone-50 dark:bg-stone-900 pb-28">
+           <AnimatePresence mode="wait" initial={false}>
+             {activeView === 'dashboard' && <DashboardView key="dashboard" crops={crops} tasks={tasks} lands={lands} toggleTask={toggleTask} onViewCropProgress={() => setActiveView('crop_progress')} onDeleteCrop={handleDeleteCrop} />}
+-            {activeView === 'ai' && <AIToolsView key="ai" onOpenPrediction={() => setActiveView('price_prediction')} onOpenChatbot={() => setActiveView('chatbot')} onOpenFertilizer={() => setActiveView('fertilizer_ai')} />}
++            {activeView === 'ai' && <AIToolsView key="ai" onOpenPrediction={() => setActiveView('price_prediction')} onOpenChatbot={() => setActiveView('chatbot')} onOpenFertilizer={() => setActiveView('fertilizer_ai')} onOpenDiseaseDetection={() => { setDetectionMode('select_source'); setActiveView('disease_detection'); }} onOpenQuickScan={() => { setDetectionMode('camera_direct'); setActiveView('disease_detection'); }} />}
+             {activeView === 'chatbot' && <ChatbotView key="chatbot" onBack={() => setActiveView('ai')} contextData={{ crops, tasks, lands }} />}
+             {activeView === 'fertilizer_ai' && <FertilizerAIView key="fertilizer_ai" onBack={() => setActiveView('ai')} crops={crops} lands={lands} />}
+             {activeView === 'calendar' && <CalendarView key="calendar" tasks={tasks} toggleTask={toggleTask} />}
+-            {activeView === 'profile' && <ProfileView key="profile" crops={crops} lands={lands} onEdit={() => setActiveView('edit_profile')} onSignOut={handleSignOut} fetchDashboardData={fetchDashboardData} />}
+-            {activeView === 'edit_profile' && <EditProfileView key="edit_profile" onBack={() => setActiveView('profile')} onSave={() => { setProfileAlert('Profile updated successfully'); setActiveView('profile'); setTimeout(() => setProfileAlert(''), 3000); }} />}
++            {activeView === 'profile' && <ProfileView key="profile" user={user} crops={crops} lands={lands} onEdit={() => setActiveView('edit_profile')} onSignOut={handleSignOut} fetchDashboardData={fetchDashboardData} onNotificationsClick={() => setActiveView('notification_preferences')} onHelpClick={() => setActiveView('help_support')} />}
++            {activeView === 'edit_profile' && <EditProfileView key="edit_profile" user={user} onBack={() => setActiveView('profile')} onSave={() => { fetchDashboardData(); setProfileAlert('Profile updated successfully'); setActiveView('profile'); setTimeout(() => setProfileAlert(''), 3000); }} />}
++            {activeView === 'notification_preferences' && <NotificationPreferencesView key="notification_preferences" user={user} onBack={() => setActiveView('profile')} onSave={() => { fetchDashboardData(); }} />}
++            {activeView === 'help_support' && <HelpSupportView key="help_support" onBack={() => setActiveView('profile')} />}
+             {activeView === 'add_crop' && <AddCropView key="add_crop" lands={lands} onBack={() => setActiveView('dashboard')} onSave={() => { fetchDashboardData(); setActiveView('dashboard'); }} />}
+             {activeView === 'add_task' && <AddTaskView key="add_task" onBack={() => setActiveView('dashboard')} onSave={() => setActiveView('dashboard')} />}
+             {activeView === 'crop_progress' && <CropProgressView key="crop_progress" crops={crops} onBack={() => setActiveView('dashboard')} onDeleteCrop={handleDeleteCrop} />}
+             {activeView === 'price_prediction' && <PricePredictionView key="price_prediction" onBack={() => setActiveView('ai')} crops={crops} />}
++            {activeView === 'disease_detection' && <DiseaseDetectionView key="disease_detection" mode={detectionMode} crops={crops} onBack={() => setActiveView('ai')} onSaveHealth={handleUpdateCropHealth} />}
+           </AnimatePresence>
+         </main>
+ 
+         {/* FAB Menu */}
+-        <div className="fixed bottom-24 right-6 z-40 flex flex-col items-end gap-3">
+-          <AnimatePresence>
+-            {showFabMenu && (
+-              <motion.div
+-                initial={{ opacity: 0, y: 20, scale: 0.8 }}
+-                animate={{ opacity: 1, y: 0, scale: 1 }}
+-                exit={{ opacity: 0, y: 20, scale: 0.8 }}
+-                className="flex flex-col gap-3 mb-2"
+-              >
+-                <FabMenuItem icon={<Sprout className="w-5 h-5" />} label="Add Crop" onClick={() => { setActiveView('add_crop'); setShowFabMenu(false); }} />
+-                <FabMenuItem icon={<FileText className="w-5 h-5" />} label="Add Task" onClick={() => { setActiveView('add_task'); setShowFabMenu(false); }} />
+-                <FabMenuItem icon={<Calendar className="w-5 h-5" />} label="Schedule" onClick={() => { setActiveView('calendar'); setShowFabMenu(false); }} />
+-                <FabMenuItem icon={<MoreHorizontal className="w-5 h-5" />} label="Others" onClick={() => { setShowFabMenu(false); }} />
+-              </motion.div>
+-            )}
+-          </AnimatePresence>
+-          <button
+-            onClick={() => setShowFabMenu(!showFabMenu)}
+-            className={`w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg shadow-emerald-600/30 transition-transform duration-300 ${showFabMenu ? 'bg-red-500 rotate-45' : 'bg-emerald-600'}`}
+-          >
+-            <Plus className="w-7 h-7" />
+-          </button>
+-        </div>
++        {activeView === 'dashboard' && (
++          <div className="fixed bottom-24 right-6 z-40 flex flex-col items-end gap-3">
++            <AnimatePresence>
++              {showFabMenu && (
++                <motion.div
++                  initial={{ opacity: 0, y: 20, scale: 0.8 }}
++                  animate={{ opacity: 1, y: 0, scale: 1 }}
++                  exit={{ opacity: 0, y: 20, scale: 0.8 }}
++                  className="flex flex-col gap-3 mb-2"
++                >
++                  <FabMenuItem icon={<Sprout className="w-5 h-5" />} label="Add Crop" onClick={() => { setActiveView('add_crop'); setShowFabMenu(false); }} />
++                  <FabMenuItem icon={<FileText className="w-5 h-5" />} label="Add Task" onClick={() => { setActiveView('add_task'); setShowFabMenu(false); }} />
++                  <FabMenuItem icon={<Calendar className="w-5 h-5" />} label="Schedule" onClick={() => { setActiveView('calendar'); setShowFabMenu(false); }} />
++                  <FabMenuItem icon={<MoreHorizontal className="w-5 h-5" />} label="Others" onClick={() => { setShowFabMenu(false); }} />
++                </motion.div>
++              )}
++            </AnimatePresence>
++            <button
++              onClick={() => setShowFabMenu(!showFabMenu)}
++              className={`w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg shadow-emerald-600/30 transition-transform duration-300 ${showFabMenu ? 'bg-red-500 rotate-45' : 'bg-emerald-600'}`}
++            >
++              <Plus className="w-7 h-7" />
++            </button>
++          </div>
++        )}
+ 
+         {/* Bottom Navigation Bar */}
+         {(activeView === 'dashboard' || activeView === 'ai' || activeView === 'calendar' || activeView === 'profile') && (
+@@ -464,7 +490,7 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
+   const [weatherData, setWeatherData] = useState<{ temp: number | null, condition: string, location: string, rainChance3Hr: number | null, rainChanceToday: number | null, loading: boolean, error: string }>(() => {
+     if (typeof window !== 'undefined') {
+       const cached = localStorage.getItem('weather_cache');
+-      if (cached) return { ...JSON.parse(cached), loading: false };
++      if (cached && cached !== 'undefined') return { ...JSON.parse(cached), loading: false };
+     }
+     return {
+       temp: null,
+@@ -504,39 +530,245 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
+       try {
+         const { Capacitor } = await import('@capacitor/core');
+         let lat, lon;
+-        
++
+         if (Capacitor.isNativePlatform()) {
+           const { Geolocation } = await import('@capacitor/geolocation');
+-          
++
+           let permission = await Geolocation.checkPermissions();
+           if (permission.location !== 'granted') {
+-             const request = await Geolocation.requestPermissions();
+-             if (request.location !== 'granted') {
+-                setWeatherData(prev => ({ ...prev, loading: false, error: 'Location permission denied' }));
+-                return;
+-             }
++            const request = await Geolocation.requestPermissions();
++            if (request.location !== 'granted') {
++              setWeatherData(prev => ({ ...prev, loading: false, error: 'Location permission denied' }));
++              return;
++            }
+           }
+-          
++
+           const position = await Geolocation.getCurrentPosition({ timeout: 10000, enableHighAccuracy: true });
+           lat = position.coords.latitude;
+           lon = position.coords.longitude;
++          console.log('Native geolocation success:', lat, lon);
+         } else {
+           if (!navigator.geolocation) {
+             setWeatherData(prev => ({ ...prev, loading: false, error: 'Geolocation not supported' }));
+             return;
+           }
+-          
++
+           const getPos = () => new Promise<GeolocationPosition>((resolve, reject) => {
+-             navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
++            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+           });
+-          
+-          const position = await getPos();
+-          lat = position.coords.latitude;
+-          lon = position.coords.longitude;
++
++          try {
++            const position = await getPos();
++            lat = position.coords.latitude;
++            lon = position.coords.longitude;
++            console.log('Web geolocation success:', lat, lon);
++          } catch (err: any) {
++            console.warn('Web geolocation failed, using fallback location (Dhaka).', err.message);
++            // Fallback to Dhaka, Bangladesh for development testing
++            lat = 23.8103;
++            lon = 90.4125;
++          }
+         }
+ 
++        console.log('Calling weather API with lat:', lat, 'lon:', lon);
+         const data = await fetchApi(`/weather?lat=${lat}&lon=${lon}`, { requireAuth: true });
++        console.log('Weather API response:', data);
++
++        const newData = {
++          temp: data.temp,
++          condition: data.condition,
++          location: `${data.location}, BD`,
++          rainChance3Hr: data.rainChance3Hr,
++          rainChanceToday: data.rainChanceToday,
++          loading: false,
++          error: ''
++        };
++
++        setWeatherData(newData);
++        localStorage.setItem('weather_cache', JSON.stringify(newData));
++
++        // Sync device token and location with Laravel backend
++        try {
++          const token = localStorage.getItem('fcm_token');
++          if (token) {
++            const { fetchApi } = await import('../lib/api');
++            await fetchApi('/user/device', {
++              method: 'PUT',
++              requireAuth: true,
++              body: JSON.stringify({ device_token: token, lat, lon })
++            });
++          }
++        } catch (e) {
++          console.error('Failed to sync device info', e);
++        }
++      } catch (error: any) {
++        console.error('Weather fetch error:', error);
++        setWeatherData(prev => ({ ...prev, loading: false, error: error.message || 'Failed to fetch weather or location' }));
++      }
++    };
++
++    fetchWeather();
++
++    window.addEventListener('online', fetchWeather);
++    window.addEventListener('offline', fetchWeather);
++
++    return () => {
++      window.removeEventListener('online', fetchWeather);
++      window.removeEventListener('offline', fetchWeather);
++    };
++  }, []);
++
++  useEffect(() => {
++    if (weatherData.loading || weatherData.error || weatherData.temp === null) return;
++    if (!crops || crops.length === 0) return;
++
++    // If we already have a valid summary (from initial cache load), don't refetch
++    if (weatherSummary) {
++      return;
++    }
++
++    const fetchSummary = async () => {
++      setIsGeneratingSummary(true);
++      try {
++        const { fetchApi } = await import('../lib/api');
++        const data = await fetchApi('/ai/weather/summary', {
++          method: 'POST',
++          requireAuth: true,
++          body: JSON.stringify({ weatherData, crops })
++        });
++        if (data && data.summary) {
++          setWeatherSummary(data.summary);
++          localStorage.setItem('weather_ai_summary', JSON.stringify({
++            summary: data.summary,
++            timestamp: Date.now(),
++            cropsHash: cropsHash
++          }));
++        }
++      } catch (err) {
++        console.error(err);
++      } finally {
++        setIsGeneratingSummary(false);
++      }
++    };
++
++    // Slight delay to not block main rendering
++    const timer = setTimeout(() => {
++      fetchSummary();
++    }, 1000);
++    return () => clearTimeout(timer);
++  }, [weatherData.loading, crops]);
++
++  const todayStr = new Date().toISOString().split('T')[0];
++  const pastTasks = tasks.filter(t => t.done);
++  const todaysTasks = tasks.filter(t => !t.done && t.time <= todayStr);
++  const upcomingTasks = tasks.filter(t => !t.done && t.time > todayStr);
++
++  return (
++    <motion.div
++      initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
++      className="p-3 md:p-4 flex flex-col gap-4"
++    >
++      {/* Weather Widget */}
++      <section className="bg-gradient-to-br from-cyan-600 to-blue-700 rounded-[2rem] p-3 text-white shadow-lg relative overflow-hidden min-h-[160px]">
++        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-10 translate-x-10 blur-2xl"></div>
++
++        {weatherData.loading ? (
++          <div className="relative z-10 animate-pulse flex flex-col justify-between h-full space-y-6">
++            <div className="flex justify-between items-start">
++              <div className="space-y-3">
++                <div className="h-4 w-28 bg-cyan-100/30 rounded-md"></div>
++                <div className="h-10 w-24 bg-white/30 rounded-lg"></div>
++                <div className="h-4 w-32 bg-cyan-100/30 rounded-md"></div>
++              </div>
++              <div className="h-12 w-12 bg-yellow-300/30 rounded-full"></div>
++            </div>
++            <div className="bg-white/10 rounded-2xl p-3 flex justify-between items-center border border-white/10">
++              <div className="h-4 w-32 bg-cyan-100/30 rounded-md"></div>
++              <div className="h-5 w-16 bg-black/10 rounded-lg"></div>
++            </div>
++          </div>
++        ) : (
++          <>
++            <div className="flex justify-between items-start relative z-10">
++              <div>
++                <div className="flex items-center gap-1.5 text-cyan-100 text-sm font-medium mb-1">
++                  <MapPin className="w-3.5 h-3.5" />
++                  {weatherData.location}
++                </div>
++                <h2 className="text-4xl font-bold mb-1 tracking-tight">
++                  {weatherData.temp !== null ? `${weatherData.temp}┬░C` : '--┬░C'}
++                </h2>
++                <p className="text-cyan-100 font-medium text-sm">
++                  {weatherData.error ? weatherData.error : weatherData.condition}
++                </p>
++              </div>
++              <Sun className="w-12 h-12 text-yellow-300 drop-shadow-md" />
++            </div>
++            <div className="mt-6 bg-white/20 backdrop-blur-md rounded-2xl p-3 flex justify-between items-center border border-white/10 relative z-10">
++              <div className="flex items-center gap-2 text-sm font-medium">
++                <CloudRain className="w-4 h-4 text-cyan-100" />
++                <span>
++                  {showTodayRain
++                    ? (weatherData.rainChanceToday !== null ? weatherData.rainChanceToday : '--')
++                    : (weatherData.rainChance3Hr !== null ? weatherData.rainChance3Hr : '--')}% Rain Chance
++                </span>
++              </div>
++              <button
++                onClick={() => setShowTodayRain(!showTodayRain)}
++                className="text-xs bg-black/20 hover:bg-black/30 transition-colors px-2.5 py-1 rounded-lg font-semibold uppercase tracking-wider cursor-pointer active:scale-95"
++              >
++                {showTodayRain ? 'Today' : 'Next 3 Hrs'}
++              </button>
++            </div>
++          </>
++        )}
++      </section>
++
++      {/* AI Weather Summary */}
++      {!weatherData.loading && !weatherData.error && crops && crops.length > 0 && (isGeneratingSummary || weatherSummary) && (
++        <section className="bg-white dark:bg-stone-800 rounded-[2rem] p-3 border border-stone-100 dark:border-stone-700 shadow-sm relative overflow-hidden -mt-2">
++          <div className="flex items-start gap-4">
++            <div className="w-10 h-10 rounded-2xl bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center flex-shrink-0 mt-0.5 border border-orange-100 dark:border-orange-900/50">
++              <MessageSquare className="w-5 h-5 text-orange-600 dark:text-orange-400" />
++            </div>
++            <div className="flex-1">
++              <h4 className="text-[11px] font-bold uppercase tracking-widest text-stone-400 dark:text-stone-500 mb-1.5 flex items-center gap-2">
++                AI Insight
++                {isGeneratingSummary && <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse"></span>}
++              </h4>
++              {isGeneratingSummary ? (
++                <div className="space-y-2.5 w-full animate-pulse mt-3">
++                  <p className="text-sm font-medium text-stone-500 dark:text-stone-400">AI summary generating...</p>
++                </div>
++              ) : (
++                <p className="text-sm font-medium text-stone-700 dark:text-stone-300 leading-relaxed pr-2">
++                  {weatherSummary}
++                </p>
++              )}
++            </div>
++          </div>
++        </section>
++      )}
++
++      {/* Crop Progress */}
++      <section>
++        <div className="flex justify-between items-end mb-4 px-1">
++          <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100">Crop Progress</h3>
++          {crops && crops.length > 0 && (
++            <button onClick={onViewCropProgress} className="text-sm text-emerald-600 dark:text-emerald-400 font-bold hover:text-emerald-700 transition-colors">View All</button>
++          )}
++        </div>
+ 
++        {!crops || crops.length === 0 ? (
++          <div className="bg-stone-50 dark:bg-stone-800 rounded-[2rem] p-3 text-center text-stone-500 text-sm">
++            No crops added yet.
++          </div>
++        ) : (
++          <div className="flex flex-col gap-4">
++            {crops.slice(0, 1).map((crop: any) => {
++              const startDate = new Date(crop.start_date);
++              const today = new Date();
++              const diffTime = today.getTime() - startDate.getTime();
+         const newData = {
+           temp: data.temp,
+           condition: data.condition,
+@@ -564,8 +796,9 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
+         } catch (e) {
+           console.error('Failed to sync device info', e);
+         }
+-      } catch (error) {
+-        setWeatherData(prev => ({ ...prev, loading: false, error: 'Failed to fetch weather or location' }));
++      } catch (error: any) {
++        console.error('Weather fetch error:', error);
++        setWeatherData(prev => ({ ...prev, loading: false, error: error.message || 'Failed to fetch weather or location' }));
+       }
+     };
+ 
+@@ -738,6 +971,7 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
+ 
+               const theme = getCropTheme(crop.color_shade);
+               let currentPhaseName = 'Sown';
++              let isHarvested = false;
+               if (crop.phases && crop.phases.length > 0) {
+                 let accDays = 0;
+                 for (let i = 0; i < crop.phases.length; i++) {
+@@ -747,24 +981,38 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
+                     break;
+                   }
+                 }
++                if (diffDays > accDays) {
++                  currentPhaseName = crop.phases[crop.phases.length - 1].name;
++                  isHarvested = true;
++                }
+               }
+               const midPhaseName = crop.phases && crop.phases.length >= 3 ? crop.phases[Math.floor(crop.phases.length / 2)].name : 'Growing';
+ 
++              const cardClasses = isHarvested
++                ? "bg-gradient-to-br from-indigo-50 via-fuchsia-50 to-rose-50 dark:from-indigo-950/50 dark:via-fuchsia-950/50 dark:to-rose-950/50 rounded-[2rem] p-4 shadow-sm border border-stone-100 dark:border-stone-800 transition-colors relative overflow-hidden"
++                : "bg-white dark:bg-stone-900 rounded-[2rem] p-4 shadow-sm border border-stone-100 dark:border-stone-800 transition-colors relative overflow-hidden";
++
+               return (
+-                <div key={crop.id} className="bg-white dark:bg-stone-900 rounded-[2rem] p-4 shadow-sm border border-stone-100 dark:border-stone-800 transition-colors relative overflow-hidden">
++                <div key={crop.id} className={cardClasses}>
+                   <div className={`absolute -right-20 -top-20 w-64 h-64 bg-gradient-to-br ${theme.bgGlow} rounded-full blur-3xl opacity-60 dark:opacity-20`}></div>
+ 
+                   <div className="relative z-10 flex flex-col gap-4">
+                     <div className="flex items-start justify-between">
+                       <div className="flex items-center gap-4">
+-                        <div className={`w-16 h-16 rounded-[1.5rem] flex items-center justify-center text-lg border shadow-sm ${theme.bgPill} ${theme.borderIcon}`}>
++                        <div className={`w-16 h-16 rounded-[1.5rem] text-[45px] flex items-center justify-center text-lg border shadow-sm ${theme.bgPill} ${theme.borderIcon}`}>
+                           {crop.emoji || '≡ƒî╛'}
+                         </div>
+                         <div>
+-                          <h4 className="font-bold text-stone-900 dark:text-stone-100 text-lg tracking-tight">{crop.land?.name || crop.name}</h4>
++                          <h4 className="font-bold text-stone-900 dark:text-stone-100 text-lg tracking-tight">{crop.land?.type || crop.type}</h4>
+                           <div className="flex items-center gap-1.5 mt-1 text-sm font-medium text-stone-500 dark:text-stone-400">
+-                            <MapPin className="w-3.5 h-3.5" /> {crop.type} {crop.land?.area ? `ΓÇó ${crop.land.area} Acres` : ''}
++                            <MapPin className="w-3.5 h-3.5" /> {crop.name} {crop.land?.area ? `ΓÇó ${crop.land.area} Acres` : ''}
+                           </div>
++                          {crop.healthStatus && (
++                            <div className={`mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold ${crop.healthStatus === 'Good health' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'}`}>
++                              {crop.healthStatus === 'Good health' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Info className="w-3.5 h-3.5" />}
++                              {crop.healthStatus}
++                            </div>
++                          )}
+                         </div>
+                       </div>
+                       <button onClick={() => onDeleteCrop(crop.id)} className="p-2.5 rounded-xl bg-white dark:bg-stone-800 border border-stone-100 dark:border-stone-700 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors shadow-sm">
+@@ -791,8 +1039,9 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
+                             Day {diffDays} <span className="text-stone-400 text-sm font-medium">/ {totalDays}</span>
+                           </span>
+                         </div>
+-                        <div className={`px-3 py-1.5 rounded-lg text-xs font-bold ${theme.bgPill} ${theme.textPill}`}>
+-                          Good Health
++                        <div className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 ${crop.healthStatus && crop.healthStatus !== 'Good health' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400' : `${theme.bgPill} ${theme.textPill}`}`}>
++                          {crop.healthStatus && crop.healthStatus !== 'Good health' ? <Info className="w-3.5 h-3.5" /> : null}
++                          {crop.healthStatus && crop.healthStatus !== 'Good health' ? crop.healthStatus : 'Good Health'}
+                         </div>
+                       </div>
+ 
+@@ -859,7 +1108,7 @@ function DashboardView({ crops, tasks, lands, toggleTask, onViewCropProgress, on
+   );
+ }
+ 
+-function AIToolsView({ onOpenPrediction, onOpenChatbot, onOpenFertilizer }: { onOpenPrediction?: () => void, onOpenChatbot?: () => void, onOpenFertilizer?: () => void }) {
++function AIToolsView({ onOpenPrediction, onOpenChatbot, onOpenFertilizer, onOpenDiseaseDetection, onOpenQuickScan }: { onOpenPrediction?: () => void, onOpenChatbot?: () => void, onOpenFertilizer?: () => void, onOpenDiseaseDetection?: () => void, onOpenQuickScan?: () => void }) {
+   return (
+     <motion.div
+       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+@@ -868,7 +1117,7 @@ function AIToolsView({ onOpenPrediction, onOpenChatbot, onOpenFertilizer }: { on
+       <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100 mb-6">AI Solutions</h2>
+ 
+       <div className="grid grid-cols-2 gap-4">
+-        <ToolCard title="Disease Detection" desc="Scan leaves for diseases" icon={<ScanLine className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />} color="bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800" />
++        <ToolCard title="Disease Detection" desc="Scan leaves for diseases" icon={<ScanLine className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />} color="bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800" onClick={onOpenDiseaseDetection} />
+         <ToolCard title="Price Prediction" desc="Market price forecasting" icon={<TrendingUp className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />} color="bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 dark:border-indigo-800" onClick={onOpenPrediction} />
+         <ToolCard title="Fertilizer AI" desc="Smart soil recommendations" icon={<Droplets className="w-6 h-6 text-cyan-600 dark:text-cyan-400" />} color="bg-cyan-50 dark:bg-cyan-900/20 border-cyan-100 dark:border-cyan-800" onClick={onOpenFertilizer} />
+         <ToolCard title="Agri Chatbot" desc="Ask anything about farming" icon={<MessageSquare className="w-6 h-6 text-orange-600 dark:text-orange-400" />} color="bg-orange-50 dark:bg-orange-900/20 border-orange-100 dark:border-orange-800" onClick={onOpenChatbot} />
+@@ -884,7 +1133,7 @@ function AIToolsView({ onOpenPrediction, onOpenChatbot, onOpenFertilizer }: { on
+             <h3 className="font-bold text-lg">Quick Scan</h3>
+           </div>
+           <p className="text-sm text-stone-300 leading-relaxed">Instantly diagnose plant diseases using your camera and our AI model. Get immediate treatment suggestions.</p>
+-          <button className="bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-3 px-5 rounded-xl text-sm w-full shadow-lg shadow-emerald-500/30 transition-colors mt-2 flex items-center justify-center gap-2">
++          <button onClick={onOpenQuickScan} className="bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-3 px-5 rounded-xl text-sm w-full shadow-lg shadow-emerald-500/30 transition-colors mt-2 flex items-center justify-center gap-2">
+             <ScanLine className="w-4 h-4" /> Open Camera
+           </button>
+         </div>
+@@ -1109,8 +1358,8 @@ function FertilizerAIView({ onBack, crops, lands }: { onBack: () => void, crops:
+                         {crop.emoji || '≡ƒî▒'}
+                       </div>
+                       <div>
+-                        <h4 className="font-bold text-stone-900 dark:text-stone-100">{crop.land?.name || crop.name}</h4>
+-                        <p className="text-xs font-medium text-stone-500 dark:text-stone-400">{crop.type} {crop.land?.area ? `ΓÇó ${crop.land.area} acres` : ''}</p>
++                        <h4 className="font-bold text-stone-900 dark:text-stone-100">{crop.land?.type || crop.type}</h4>
++                        <p className="text-xs font-medium text-stone-500 dark:text-stone-400">{crop.name} {crop.land?.area ? `ΓÇó ${crop.land.area} acres` : ''}</p>
+                       </div>
+                     </div>
+                     <ArrowRight className="w-5 h-5 text-stone-400 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors" />
+@@ -1603,7 +1852,7 @@ function CalendarView({ tasks, toggleTask }: { tasks: any[], toggleTask: (id: nu
+   );
+ }
+ 
+-function ProfileView({ lands, crops, onEdit, onSignOut, fetchDashboardData }: { lands: any[], crops: any[], onEdit: () => void, onSignOut: () => void, fetchDashboardData: () => void }) {
++function ProfileView({ user, lands, crops, onEdit, onSignOut, fetchDashboardData, onNotificationsClick, onHelpClick }: { user: any, lands: any[], crops: any[], onEdit: () => void, onSignOut: () => void, fetchDashboardData: () => void, onNotificationsClick: () => void, onHelpClick: () => void }) {
+   const [landToDelete, setLandToDelete] = useState<any | null>(null);
+   const [landToEdit, setLandToEdit] = useState<any | null>(null);
+   const [editLandName, setEditLandName] = useState('');
+@@ -1638,7 +1887,7 @@ function ProfileView({ lands, crops, onEdit, onSignOut, fetchDashboardData }: {
+   return (
+     <motion.div
+       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+-      className="p-3 md:p-4"
++      className="p-3 md:p-4 pb-24 h-full overflow-y-auto"
+     >
+       <div className="flex flex-col items-center text-center mb-8 pt-4 relative">
+         <button onClick={onEdit} className="absolute top-0 right-0 p-2 bg-white dark:bg-stone-800 rounded-full shadow-sm text-stone-500 hover:text-emerald-600 transition-colors">
+@@ -1649,10 +1898,10 @@ function ProfileView({ lands, crops, onEdit, onSignOut, fetchDashboardData }: {
+             <User className="w-12 h-12 text-emerald-600 dark:text-emerald-400" />
+           </div>
+         </div>
+-        <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100 tracking-tight">Karim Mia</h2>
++        <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100 tracking-tight">{user?.name || 'Farmer'}</h2>
+         <p className="text-stone-500 dark:text-stone-400 font-medium text-sm flex items-center justify-center gap-1.5 mt-2 bg-stone-100 dark:bg-stone-800 py-1.5 px-4 rounded-full">
+           <MapPin className="w-3.5 h-3.5" />
+-          Natore, Rajshahi
++          {user?.location || 'Unknown Location'}
+         </p>
+       </div>
+ 
+@@ -1699,16 +1948,16 @@ function ProfileView({ lands, crops, onEdit, onSignOut, fetchDashboardData }: {
+             ))}
+           </div>
+         ) : (
+-          <div className="bg-stone-50 dark:bg-stone-800 rounded-[2rem] p-3 text-center text-stone-500 text-sm">
+-            No lands added yet.
++          <div className="text-center py-6 bg-white dark:bg-stone-800 rounded-2xl border border-stone-100 dark:border-stone-700">
++            <p className="text-stone-500">No lands added yet.</p>
+           </div>
+         )}
+       </div>
+ 
+       <div className="space-y-3 bg-white dark:bg-stone-800 p-2 rounded-[2rem] border border-stone-100 dark:border-stone-700 shadow-sm">
+         <ProfileListItem icon={<User className="w-5 h-5 text-stone-600 dark:text-stone-400" />} label="Personal Details" onClick={onEdit} />
+-        <ProfileListItem icon={<Bell className="w-5 h-5 text-stone-600 dark:text-stone-400" />} label="Notification Preferences" />
+-        <ProfileListItem icon={<MessageSquare className="w-5 h-5 text-stone-600 dark:text-stone-400" />} label="Help & Support" />
++        <ProfileListItem icon={<Bell className="w-5 h-5 text-stone-600 dark:text-stone-400" />} label="Notification Preferences" onClick={onNotificationsClick} />
++        <ProfileListItem icon={<MessageSquare className="w-5 h-5 text-stone-600 dark:text-stone-400" />} label="Help & Support" onClick={onHelpClick} />
+         <ProfileListItem icon={<LogOut className="w-5 h-5 text-red-500" />} label="Sign Out" isDestructive onClick={onSignOut} />
+       </div>
+ 
+@@ -1836,7 +2085,27 @@ function ProfileView({ lands, crops, onEdit, onSignOut, fetchDashboardData }: {
+ // Sub Views (Edit Profile, Add Crop, Add Task)
+ // ---------------------------------------------------------
+ 
+-function EditProfileView({ onBack, onSave }: { onBack: () => void, onSave: () => void }) {
++function EditProfileView({ user, onBack, onSave }: { user: any, onBack: () => void, onSave: () => void }) {
++  const [name, setName] = useState(user?.name || '');
++  const [location, setLocation] = useState(user?.location || '');
++  const [phone, setPhone] = useState(user?.phone || '');
++  const [isSaving, setIsSaving] = useState(false);
++
++  const handleSave = async () => {
++    setIsSaving(true);
++    try {
++      await fetchApi('/user', {
++        method: 'PUT',
++        requireAuth: true,
++        body: JSON.stringify({ name, location, phone })
++      });
++      onSave();
++    } catch (e: any) {
++      alert('Failed to update profile: ' + e.message);
++    }
++    setIsSaving(false);
++  };
++
+   return (
+     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="h-full bg-white dark:bg-stone-900 flex flex-col absolute inset-0 z-30">
+       <header className="px-5 py-4 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between bg-white dark:bg-stone-900">
+@@ -1860,676 +2129,127 @@ function EditProfileView({ onBack, onSave }: { onBack: () => void, onSave: () =>
+         <div className="space-y-5">
+           <div>
+             <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Full Name</label>
+-            <input type="text" defaultValue="Karim Mia" className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
++            <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
+           </div>
+           <div>
+             <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Location</label>
+-            <input type="text" defaultValue="Natore, Rajshahi" className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
++            <input type="text" value={location} onChange={e => setLocation(e.target.value)} className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
+           </div>
+           <div>
+             <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Phone Number</label>
+-            <input type="tel" defaultValue="+880 1711 223344" className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
++            <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
+           </div>
+         </div>
+       </div>
+-      <div className="p-3 border-t border-stone-100 dark:border-stone-800 bg-white dark:bg-stone-900">
+-        <button onClick={onSave} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-600/20 transition-colors">
+-          Save Changes
++      <div className="p-3 pb-4 border-t border-stone-100 dark:border-stone-800 bg-white dark:bg-stone-900">
++        <button onClick={handleSave} disabled={isSaving} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-600/20 transition-colors disabled:opacity-50">
++          {isSaving ? 'Saving...' : 'Save Changes'}
+         </button>
+       </div>
+     </motion.div>
+   );
+ }
+ 
+-function AddCropView({ lands, onBack, onSave }: { lands: any[], onBack: () => void, onSave: () => void }) {
+-  const [cropType, setCropType] = useState('Rice');
+-  const [customCropType, setCustomCropType] = useState('');
+-  const [apiError, setApiError] = useState('');
+-  const [selectedLandId, setSelectedLandId] = useState(lands?.length > 0 ? lands[0].id : 'new');
+-  const [fieldName, setFieldName] = useState('');
+-  const [startDate, setStartDate] = useState('');
+-  const [landArea, setLandArea] = useState('');
+-
+-  // Modals for Custom Native Inputs
+-  const [showCropSelect, setShowCropSelect] = useState(false);
+-  const [showLandSelect, setShowLandSelect] = useState(false);
+-  const [showDatePicker, setShowDatePicker] = useState(false);
+-  const [pickerMonth, setPickerMonth] = useState(new Date().getMonth());
+-  const [pickerYear, setPickerYear] = useState(new Date().getFullYear());
+-
+-  const daysInPickerMonth = new Date(pickerYear, pickerMonth + 1, 0).getDate();
+-  const firstDayOfPickerMonth = new Date(pickerYear, pickerMonth, 1).getDay();
+-  const pickerDays = (Array.from({ length: firstDayOfPickerMonth }, () => null) as (number | null)[]).concat(Array.from({ length: daysInPickerMonth }, (_, i) => i + 1));
+-
+-  const [isGenerating, setIsGenerating] = useState(false);
+-  const [reviewData, setReviewData] = useState<any>(null);
+-  const [generationTimeMs, setGenerationTimeMs] = useState(0);
+-  const loadingTexts = ["AI Analyzing...", "Analyzing your crops...", "Generating Task...", "Generating Schedule..."];
+-  const [loadingText, setLoadingText] = useState(loadingTexts[0]);
+-
+-  const handleGenerate = async () => {
+-    const finalCropType = cropType === 'Other' ? customCropType : cropType;
+-    if (!finalCropType || !startDate) return alert('Please enter crop type and start date.');
++function NotificationPreferencesView({ user, onBack, onSave }: { user: any, onBack: () => void, onSave: () => void }) {
++  const [pushEnabled, setPushEnabled] = useState(user?.push_enabled ?? true);
++  const [isSaving, setIsSaving] = useState(false);
+ 
+-    setApiError('');
+-    setIsGenerating(true);
+-    const startTime = Date.now();
+-    const interval = setInterval(() => {
+-      setLoadingText(loadingTexts[Math.floor(Math.random() * loadingTexts.length)]);
+-    }, 800);
++  const togglePush = async () => {
++    const newValue = !pushEnabled;
++    setPushEnabled(newValue);
++    setIsSaving(true);
+     try {
+-      const data = await fetchApi('/ai/crop-phases', {
+-        method: 'POST',
++      await fetchApi('/user', {
++        method: 'PUT',
+         requireAuth: true,
+-        body: JSON.stringify({ cropType: finalCropType, startDate, landArea })
++        body: JSON.stringify({ push_enabled: newValue })
+       });
+-      if (data.error) throw new Error(data.error);
+-
+-      data.phases = data.phases.map((p: any) => ({ ...p, checked: true, original_days_count: p.days_count }));
+-      setReviewData(data);
+-      setGenerationTimeMs(Date.now() - startTime);
+-    } catch (err: any) {
+-      setApiError(err.message);
+-    }
+-    clearInterval(interval);
+-    setIsGenerating(false);
+-  };
+-
+-  const togglePhase = (index: number) => {
+-    if (!reviewData) return;
+-    const newPhases = [...reviewData.phases];
+-    newPhases[index].checked = !newPhases[index].checked;
+-
+-    // Reset all phases to their original days count
+-    newPhases.forEach(p => p.days_count = p.original_days_count);
+-
+-    // Redistribute days for unchecked phases
+-    for (let i = 0; i < newPhases.length; i++) {
+-      if (!newPhases[i].checked) {
+-        const originalDays = newPhases[i].original_days_count;
+-
+-        let prevIdx = i - 1;
+-        while (prevIdx >= 0 && !newPhases[prevIdx].checked) prevIdx--;
+-
+-        let nextIdx = i + 1;
+-        while (nextIdx < newPhases.length && !newPhases[nextIdx].checked) nextIdx++;
+-
+-        if (prevIdx >= 0 && nextIdx < newPhases.length) {
+-          const half = Math.floor(originalDays / 2);
+-          const remainder = originalDays - half;
+-          newPhases[prevIdx].days_count += half;
+-          newPhases[nextIdx].days_count += remainder;
+-        } else if (prevIdx >= 0) {
+-          newPhases[prevIdx].days_count += originalDays;
+-        } else if (nextIdx < newPhases.length) {
+-          newPhases[nextIdx].days_count += originalDays;
+-        }
+-      }
++      onSave();
++    } catch (e: any) {
++      alert('Failed to update preferences: ' + e.message);
++      setPushEnabled(!newValue); // revert
+     }
+-
+-    setReviewData({ ...reviewData, phases: newPhases });
++    setIsSaving(false);
+   };
+ 
+-  const getEmojiForCrop = (type: string) => {
+-    const t = type.toLowerCase();
+-    if (t.includes('rice') || t.includes('wheat')) return '≡ƒî╛';
+-    if (t.includes('corn')) return '≡ƒî╜';
+-    if (t.includes('tomato')) return '≡ƒìà';
+-    if (t.includes('potato')) return '≡ƒÑö';
+-    if (t.includes('carrot')) return '≡ƒÑò';
+-    if (t.includes('onion')) return '≡ƒºà';
+-    if (t.includes('jute')) return '≡ƒî┐';
+-    if (t.includes('strawberry') || t.includes('berry')) return '≡ƒìô';
+-    if (t.includes('apple')) return '≡ƒìÄ';
+-    if (t.includes('grape')) return '≡ƒìç';
+-    if (t.includes('sunflower')) return '≡ƒî╗';
+-    return '≡ƒî▒';
+-  };
+-
+-  const handleConfirmSave = async () => {
+-    if (!reviewData) return;
+-
+-    const finalCropType = cropType === 'Other' ? customCropType : cropType;
+-    let currentDate = new Date(startDate);
+-    const finalPhases = [];
+-    const phaseMap: any = {};
+-
+-    for (const p of reviewData.phases) {
+-      if (p.checked) {
+-        const phaseStart = new Date(currentDate);
+-        currentDate.setDate(currentDate.getDate() + Number(p.days_count));
+-        const phaseEnd = new Date(currentDate);
+-
+-        finalPhases.push({
+-          name: p.name,
+-          days_count: p.days_count,
+-          start_date: phaseStart.toISOString().split('T')[0],
+-          end_date: phaseEnd.toISOString().split('T')[0],
+-          is_active: true
+-        });
+-        phaseMap[p.name] = phaseStart;
+-      }
+-    }
+-
+-    const finalTasks = reviewData.tasks.filter((t: any) => reviewData.phases.find((p: any) => p.name === t.phase_name && p.checked)).map((t: any) => {
+-      const taskDate = new Date(phaseMap[t.phase_name]);
+-      taskDate.setDate(taskDate.getDate() + t.day_offset);
+-      return {
+-        ...t,
+-        date: taskDate.toISOString().split('T')[0]
+-      };
+-    });
+-
+-    try {
+-      await fetchApi('/crops', {
+-        method: 'POST',
+-        requireAuth: true,
+-        body: JSON.stringify({
+-          name: (selectedLandId === 'new' ? fieldName : lands.find((l: any) => l.id == selectedLandId)?.name) || finalCropType,
+-          type: finalCropType,
+-          start_date: startDate,
+-          color_shade: reviewData.colorShade,
+-          emoji: getEmojiForCrop(finalCropType),
+-          phases: finalPhases,
+-          tasks: finalTasks,
+-          land_id: selectedLandId !== 'new' ? selectedLandId : null,
+-          new_land_name: selectedLandId === 'new' ? fieldName : null,
+-          new_land_area: selectedLandId === 'new' ? landArea : null
+-        })
+-      });
+-      onSave(); // Close view and potentially trigger a refresh
+-    } catch (err: any) {
+-      alert('Failed to save: ' + err.message);
+-    }
+-  };
+-
+-  const daysSinceStart = startDate ? Math.floor((new Date().getTime() - new Date(startDate).getTime()) / (1000 * 3600 * 24)) : 0;
+-
+   return (
+-    <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="h-full bg-white dark:bg-stone-900 flex flex-col absolute inset-0 z-30">
+-      <header className="px-5 py-4 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between">
+-        <button onClick={() => reviewData ? setReviewData(null) : onBack()} className="p-2 -ml-2 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-300 transition-colors">
++    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="h-full bg-white dark:bg-stone-900 flex flex-col absolute inset-0 z-30">
++      <header className="px-5 py-4 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between bg-white dark:bg-stone-900">
++        <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-300">
+           <ArrowLeft className="w-6 h-6" />
+         </button>
+-        <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100">Add New Crop</h2>
++        <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100">Notifications</h2>
+         <div className="w-10"></div>
+       </header>
+-
+-      {/* Loading Overlay */}
+-      <AnimatePresence>
+-        {isGenerating && (
+-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white dark:bg-stone-800 rounded-3xl p-5 w-full max-w-sm flex flex-col items-center text-center shadow-2xl">
+-              <div className="w-16 h-16 border-4 border-emerald-100 border-t-emerald-600 rounded-full animate-spin mb-6"></div>
+-              <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100 mb-2">{loadingText}</h3>
+-              <p className="text-stone-500 dark:text-stone-400 text-sm">Please wait while our AI models analyze the best schedule for your crop.</p>
+-            </motion.div>
+-          </motion.div>
+-        )}
+-      </AnimatePresence>
+-
+-      {!reviewData ? (
+-        <div className="p-4 flex-1 overflow-y-auto space-y-6">
+-          <div>
+-            <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Crop Type</label>
+-            <div className="flex flex-col gap-3">
+-              <div
+-                onClick={() => setShowCropSelect(true)}
+-                className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-4 text-stone-900 dark:text-stone-100 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/50 flex justify-between items-center cursor-pointer shadow-sm transition-all"
+-              >
+-                <span>{cropType}</span>
+-                <div className="text-stone-400">
+-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+-                </div>
+-              </div>
+-              {cropType === 'Other' && (
+-                <motion.input
+-                  initial={{ opacity: 0, height: 0 }}
+-                  animate={{ opacity: 1, height: 'auto' }}
+-                  type="text"
+-                  value={customCropType}
+-                  onChange={e => { setCustomCropType(e.target.value); setApiError(''); }}
+-                  placeholder="Enter crop name (e.g. Jute, Watermelon)"
+-                  className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-4 text-stone-900 dark:text-stone-100 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/50 block shadow-sm transition-all"
+-                />
+-              )}
+-            </div>
+-          </div>
+-          {apiError && (
+-            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-4 rounded-2xl text-sm font-medium border border-red-100 dark:border-red-900/30">
+-              {apiError}
+-            </motion.div>
+-          )}
+-          {lands?.length > 0 && (
+-            <div>
+-              <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Select Field</label>
+-              <div
+-                onClick={() => setShowLandSelect(true)}
+-                className="mb-4 w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-4 text-stone-900 dark:text-stone-100 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/50 flex justify-between items-center cursor-pointer shadow-sm transition-all"
+-              >
+-                <span>{selectedLandId === 'new' ? '+ Add New Field' : lands.find((l: any) => l.id == selectedLandId)?.name + ' (' + lands.find((l: any) => l.id == selectedLandId)?.area + ' acres)'}</span>
+-                <div className="text-stone-400">
+-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+-                </div>
+-              </div>
+-            </div>
+-          )}
+-
+-          {(!lands || lands.length === 0 || selectedLandId === 'new') && (
+-            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-4">
+-              <div>
+-                <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">New Field Name (Optional)</label>
+-                <input type="text" value={fieldName} onChange={e => setFieldName(e.target.value)} placeholder="e.g. North Plot" className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-4 text-stone-900 dark:text-stone-100 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/50 block shadow-sm transition-all" />
+-              </div>
+-              <div>
+-                <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Land Area in Acres (Optional)</label>
+-                <input type="number" step="0.1" min="0" value={landArea} onChange={e => setLandArea(e.target.value)} placeholder="e.g. 2.5" className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-4 text-stone-900 dark:text-stone-100 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/50 block shadow-sm transition-all" />
+-              </div>
+-            </motion.div>
+-          )}
++      <div className="p-4 flex-1 overflow-y-auto">
++        <div className="bg-white dark:bg-stone-800 rounded-2xl p-4 border border-stone-100 dark:border-stone-700 shadow-sm flex items-center justify-between">
+           <div>
+-            <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Starting Date</label>
+-            <div
+-              onClick={() => setShowDatePicker(true)}
+-              className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-4 text-stone-900 dark:text-stone-100 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/50 flex justify-between items-center cursor-pointer shadow-sm transition-all"
+-            >
+-              <span>{startDate ? new Date(startDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'Select Date'}</span>
+-              <div className="text-stone-400">
+-                <Calendar className="h-5 w-5" />
+-              </div>
+-            </div>
++            <h3 className="font-bold text-stone-900 dark:text-stone-100">Push Notifications</h3>
++            <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">Receive alerts for tasks and updates</p>
+           </div>
+-        </div>
+-      ) : (
+-        <div className="p-4 flex-1 overflow-y-auto space-y-4">
+-          <div className="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-2xl border border-emerald-100 dark:border-emerald-800/30">
+-            <div className="flex justify-between items-start">
+-              <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300">
+-                {daysSinceStart >= 1
+-                  ? `Seems, you have farming the crop since ${daysSinceStart} days. Unselect if any of the steps you dont want to...`
+-                  : `AI has generated the ideal schedule based on your start date. Unselect any steps you dont want to...`
+-                }
+-              </p>
+-              {generationTimeMs > 0 && false && (
+-                <span className="bg-emerald-200 text-emerald-800 text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap ml-2">
+-                  {(generationTimeMs / 1000).toFixed(1)}s
+-                </span>
+-              )}
+-            </div>
+-          </div>
+-          <div className="space-y-3">
+-            {reviewData.phases.map((phase: any, idx: number) => (
+-              <div key={idx} className={`p-4 rounded-2xl border flex items-start gap-3 transition-colors ${phase.checked ? 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700' : 'bg-stone-50 dark:bg-stone-900 border-stone-100 dark:border-stone-800 opacity-60'}`}>
+-                <input type="checkbox" checked={phase.checked} onChange={() => togglePhase(idx)} className="mt-1 w-5 h-5 accent-emerald-600 rounded" />
+-                <div>
+-                  <h4 className="font-bold text-stone-900 dark:text-stone-100">{phase.name}</h4>
+-                  <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">{phase.description}</p>
+-                  <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-2">{phase.days_count} Days</p>
+-                </div>
+-              </div>
+-            ))}
+-          </div>
+-        </div>
+-      )}
+-
+-      <div className="p-3 border-t border-stone-100 dark:border-stone-800 bg-white dark:bg-stone-900">
+-        {!reviewData ? (
+-          <button onClick={handleGenerate} disabled={isGenerating} className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-70 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2">
+-            {isGenerating ? 'Analyzing with AI...' : 'Analyze & Generate Schedule'}
+-          </button>
+-        ) : (
+-          <button onClick={handleConfirmSave} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2">
+-            Confirm & Save Crop
++          <button 
++            onClick={togglePush} 
++            disabled={isSaving}
++            className={`w-12 h-6 rounded-full p-1 transition-colors ${pushEnabled ? 'bg-emerald-500' : 'bg-stone-300 dark:bg-stone-600'}`}
++          >
++            <div className={`w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform ${pushEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+           </button>
+-        )}
++        </div>
+       </div>
+-
+-      {/* Modals for Custom Inputs */}
+-      <AnimatePresence>
+-        {showCropSelect && (
+-          <>
+-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowCropSelect(false)} className="fixed inset-0 bg-black/60 z-[60] backdrop-blur-sm" />
+-            <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="fixed bottom-0 left-0 right-0 bg-white dark:bg-stone-900 z-[70] rounded-t-[2rem] max-h-[85vh] flex flex-col shadow-2xl pb-[env(safe-area-inset-bottom)]">
+-              <div className="p-4 flex justify-between items-center border-b border-stone-100 dark:border-stone-800">
+-                <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100">Select Crop</h3>
+-                <button onClick={() => setShowCropSelect(false)} className="w-8 h-8 bg-stone-100 dark:bg-stone-800 rounded-full flex items-center justify-center text-stone-500"><X className="w-4 h-4" /></button>
+-              </div>
+-              <div className="p-4 flex flex-col gap-2 overflow-y-auto">
+-                {['Rice', 'Wheat', 'Corn', 'Tomato', 'Potato', 'Other'].map(opt => (
+-                  <div key={opt} onClick={() => { setCropType(opt); setApiError(''); setShowCropSelect(false); }} className={`p-4 rounded-2xl font-bold text-center cursor-pointer transition-colors ${cropType === opt ? 'bg-emerald-600 text-white' : 'bg-stone-50 dark:bg-stone-800 text-stone-900 dark:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-700'}`}>
+-                    {opt}
+-                  </div>
+-                ))}
+-              </div>
+-            </motion.div>
+-          </>
+-        )}
+-
+-        {showLandSelect && (
+-          <>
+-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowLandSelect(false)} className="fixed inset-0 bg-black/60 z-[60] backdrop-blur-sm" />
+-            <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="fixed bottom-0 left-0 right-0 bg-white dark:bg-stone-900 z-[70] rounded-t-[2rem] max-h-[85vh] flex flex-col shadow-2xl pb-[env(safe-area-inset-bottom)]">
+-              <div className="p-4 flex justify-between items-center border-b border-stone-100 dark:border-stone-800">
+-                <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100">Select Field</h3>
+-                <button onClick={() => setShowLandSelect(false)} className="w-8 h-8 bg-stone-100 dark:bg-stone-800 rounded-full flex items-center justify-center text-stone-500"><X className="w-4 h-4" /></button>
+-              </div>
+-              <div className="p-4 flex flex-col gap-2 overflow-y-auto">
+-                {lands.map((l: any) => (
+-                  <div key={l.id} onClick={() => { setSelectedLandId(l.id); setShowLandSelect(false); }} className={`p-4 rounded-2xl font-bold text-center cursor-pointer transition-colors ${selectedLandId === l.id.toString() ? 'bg-emerald-600 text-white' : 'bg-stone-50 dark:bg-stone-800 text-stone-900 dark:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-700'}`}>
+-                    {l.name} ({l.area} acres)
+-                  </div>
+-                ))}
+-                <div onClick={() => { setSelectedLandId('new'); setShowLandSelect(false); }} className={`p-4 rounded-2xl font-bold text-center cursor-pointer transition-colors ${selectedLandId === 'new' ? 'bg-emerald-600 text-white' : 'bg-stone-50 dark:bg-stone-800 text-emerald-600 dark:text-emerald-400 hover:bg-stone-100 dark:hover:bg-stone-700'}`}>
+-                  + Add New Field
+-                </div>
+-              </div>
+-            </motion.div>
+-          </>
+-        )}
+-
+-        {showDatePicker && (
+-          <>
+-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowDatePicker(false)} className="fixed inset-0 bg-black/60 z-[60] backdrop-blur-sm" />
+-            <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="fixed bottom-0 left-0 right-0 bg-white dark:bg-stone-900 z-[70] rounded-t-[2rem] flex flex-col shadow-2xl pb-[env(safe-area-inset-bottom)]">
+-              <div className="p-4 flex justify-between items-center border-b border-stone-100 dark:border-stone-800">
+-                <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100">Select Starting Date</h3>
+-                <button onClick={() => setShowDatePicker(false)} className="w-8 h-8 bg-stone-100 dark:bg-stone-800 rounded-full flex items-center justify-center text-stone-500"><X className="w-4 h-4" /></button>
+-              </div>
+-              <div className="p-4">
+-                <div className="flex justify-between items-center mb-6">
+-                  <button onClick={() => {
+-                    if (pickerMonth === 0) { setPickerMonth(11); setPickerYear(y => y - 1); }
+-                    else setPickerMonth(m => m - 1);
+-                  }} className="w-10 h-10 flex items-center justify-center bg-stone-50 dark:bg-stone-800 rounded-full">
+-                    <ArrowLeft className="w-5 h-5 text-stone-600 dark:text-stone-300" />
+-                  </button>
+-                  <span className="font-bold text-lg text-stone-900 dark:text-stone-100">
+-                    {new Date(pickerYear, pickerMonth).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+-                  </span>
+-                  <button onClick={() => {
+-                    if (pickerMonth === 11) { setPickerMonth(0); setPickerYear(y => y + 1); }
+-                    else setPickerMonth(m => m + 1);
+-                  }} className="w-10 h-10 flex items-center justify-center bg-stone-50 dark:bg-stone-800 rounded-full">
+-                    <ArrowRight className="w-5 h-5 text-stone-600 dark:text-stone-300" />
+-                  </button>
+-                </div>
+-
+-                <div className="grid grid-cols-7 gap-y-3 gap-x-1 text-center">
+-                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => <div key={d} className="text-xs font-bold text-stone-400 py-2">{d}</div>)}
+-                  {pickerDays.map((d, i) => {
+-                    if (!d) return <div key={i} />
+-                    const dateStr = `${pickerYear}-${String(pickerMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+-                    const isSelected = startDate === dateStr;
+-                    const isToday = new Date().toISOString().split('T')[0] === dateStr;
+-                    return (
+-                      <div key={i} onClick={() => { setStartDate(dateStr); setShowDatePicker(false); }} className={`aspect-square flex items-center justify-center rounded-full text-[15px] font-bold cursor-pointer transition-all ${isSelected ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30 ring-4 ring-emerald-600/20' : isToday ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30' : 'text-stone-900 dark:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-800'}`}>
+-                        {d}
+-                      </div>
+-                    )
+-                  })}
+-                </div>
+-                <div className="mt-6 pt-4 border-t border-stone-100 dark:border-stone-800 flex justify-between">
+-                  <button onClick={() => {
+-                    const today = new Date();
+-                    setPickerMonth(today.getMonth());
+-                    setPickerYear(today.getFullYear());
+-                    setStartDate(today.toISOString().split('T')[0]);
+-                    setShowDatePicker(false);
+-                  }} className="text-sm font-bold text-emerald-600 dark:text-emerald-400 py-2 px-4 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
+-                    Today
+-                  </button>
+-                  <button onClick={() => setShowDatePicker(false)} className="text-sm font-bold text-stone-600 dark:text-stone-400 py-2 px-4 rounded-xl hover:bg-stone-50 dark:hover:bg-stone-800">
+-                    Cancel
+-                  </button>
+-                </div>
+-              </div>
+-            </motion.div>
+-          </>
+-        )}
+-      </AnimatePresence>
+-
+     </motion.div>
+   );
+ }
+ 
+-function AddTaskView({ onBack, onSave }: { onBack: () => void, onSave: () => void }) {
++function HelpSupportView({ onBack }: { onBack: () => void }) {
++  const contacts = [
++    { name: 'Shoaib Bin Habib', id: '2312448042', email: 'shoaib.habib@northsouth.edu', phone: '01636347684' },
++    { name: 'S.M. Tahmid Abir', id: '2311015042', email: 'sm.abir@northsouth.edu', phone: '01906055664' },
++    { name: 'Mohammad Sofwan Islam', id: '2231769642', email: 'sofwan.islam@northsouth.edu' }
++  ];
++
+   return (
+-    <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="h-full bg-white dark:bg-stone-900 flex flex-col absolute inset-0 z-30">
+-      <header className="px-5 py-4 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between">
+-        <button onClick={onBack} className="p-2 -ml-2 rounded-full text-stone-600 dark:text-stone-300">
+-          <X className="w-6 h-6" />
++    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="h-full bg-white dark:bg-stone-900 flex flex-col absolute inset-0 z-30">
++      <header className="px-5 py-4 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between bg-white dark:bg-stone-900">
++        <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-300">
++          <ArrowLeft className="w-6 h-6" />
+         </button>
+-        <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100">Add Task</h2>
++        <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100">Help & Support</h2>
+         <div className="w-10"></div>
+       </header>
+-      <div className="p-4 flex-1 overflow-y-auto space-y-6">
+-        <div>
+-          <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Task Title</label>
+-          <input type="text" placeholder="e.g. Apply Fertilizer" className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none" />
+-        </div>
+-        <div>
+-          <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Select Field/Crop</label>
+-          <select className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none">
+-            <option>Field A (Aman Rice)</option>
+-            <option>Field B (Boro Rice)</option>
+-          </select>
+-        </div>
+-        <div className="flex gap-4">
+-          <div className="flex-1">
+-            <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Date</label>
+-            <input type="date" className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none" />
+-          </div>
+-          <div className="flex-1">
+-            <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase mb-2 ml-1">Time</label>
+-            <input type="time" className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-4 py-3.5 text-stone-900 dark:text-stone-100 font-medium focus:outline-none" />
+-          </div>
+-        </div>
+-      </div>
+-      <div className="p-3 border-t border-stone-100 dark:border-stone-800">
+-        <button onClick={onSave} className="w-full bg-emerald-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-600/20">
+-          Create Task
+-        </button>
+-      </div>
+-    </motion.div>
+-  );
+-}
+-
+-
+-// ==========================================
+-// Reusable Components
+-// ==========================================
+-
+-function NavItem({ icon: Icon, label, isActive, onClick }: { icon: any, label: string, isActive: boolean, onClick: () => void }) {
+-  return (
+-    <button
+-      onClick={onClick}
+-      className={`flex flex-col items-center justify-center w-16 h-14 rounded-xl transition-all relative ${isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-stone-400 hover:text-stone-600 dark:hover:text-stone-300'}`}
+-    >
+-      {isActive && (
+-        <motion.div
+-          layoutId="nav-pill"
+-          className="absolute inset-0 bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl -z-10"
+-        />
+-      )}
+-      <Icon className={`w-6 h-6 mb-1 ${isActive ? 'fill-emerald-100 dark:fill-emerald-900/50 stroke-emerald-600 dark:stroke-emerald-400' : 'stroke-[1.5]'}`} />
+-      <span className={`text-[10px] font-bold tracking-wide ${isActive ? 'text-emerald-700 dark:text-emerald-400' : 'text-stone-500 dark:text-stone-400'}`}>{label}</span>
+-    </button>
+-  );
+-}
+-
+-function TaskCard({ task, onToggle }: { task: any, onToggle: () => void }) {
+-  const [isCompleting, setIsCompleting] = useState(false);
+-
+-  const getIcon = (type: string) => {
+-    switch (type) {
+-      case 'water': return <Droplets className="w-5 h-5 text-blue-500 dark:text-blue-400" />;
+-      case 'scan': return <ScanLine className="w-5 h-5 text-purple-500 dark:text-purple-400" />;
+-      default: return <Leaf className="w-5 h-5 text-emerald-500" />;
+-    }
+-  };
+-
+-  const getBg = (type: string) => {
+-    switch (type) {
+-      case 'water': return 'bg-blue-50 dark:bg-blue-900/20';
+-      case 'scan': return 'bg-purple-50 dark:bg-purple-900/20';
+-      default: return 'bg-emerald-50 dark:bg-emerald-900/20';
+-    }
+-  };
+-
+-  const handleClick = () => {
+-    if (!task.done && !isCompleting) {
+-      setIsCompleting(true);
+-      setTimeout(() => {
+-        onToggle();
+-        setIsCompleting(false);
+-      }, 500);
+-    } else if (task.done) {
+-      onToggle();
+-    }
+-  };
+-
+-  const isDone = task.done || isCompleting;
+-
+-  return (
+-    <motion.div
+-      layout
+-      initial={{ opacity: 0, y: 20 }}
+-      animate={{ opacity: isCompleting ? 0 : (task.done ? 0.6 : 1), y: 0, scale: isCompleting ? 0.95 : 1 }}
+-      exit={{ opacity: 0, scale: 0.9 }}
+-      transition={{ duration: 0.3 }}
+-      onClick={handleClick}
+-      className={`flex items-center gap-4 p-4 rounded-[1.5rem] border transition-all cursor-pointer ${isDone ? 'bg-stone-50 dark:bg-stone-900/50 border-stone-100 dark:border-stone-800' : 'bg-white dark:bg-stone-800 border-stone-100 dark:border-stone-700 shadow-sm hover:shadow-md'}`}
+-    >
+-      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${getBg(task.type)}`}>
+-        {getIcon(task.type)}
+-      </div>
+-      <div className="flex-1">
+-        <div className="relative inline-block">
+-          <h4 className={`font-bold text-[15px] ${isDone ? 'text-stone-500 dark:text-stone-400' : 'text-stone-900 dark:text-stone-100'} transition-colors duration-300`}>{task.title}</h4>
+-          <motion.div
+-            initial={false}
+-            animate={{ width: isDone ? '100%' : '0%' }}
+-            transition={{ duration: 0.3, ease: 'easeInOut' }}
+-            className="absolute top-1/2 left-0 h-[2px] bg-stone-500 dark:bg-stone-400 -mt-px"
+-          />
+-        </div>
+-        <div className="flex items-center gap-2 mt-1">
+-          {(() => {
+-            const todayStr = new Date().toISOString().split('T')[0];
+-            const isPastIncomplete = !task.done && task.time < todayStr;
+-            return (
+-              <span className={`text-xs font-semibold transition-colors duration-300 ${isPastIncomplete && !isDone ? 'text-red-500' : 'text-stone-500 dark:text-stone-400'}`}>{task.time}</span>
+-            );
+-          })()}
+-          <span className="w-1 h-1 bg-stone-300 dark:bg-stone-600 rounded-full"></span>
+-          <div className="flex items-center gap-1.5 overflow-hidden">
+-            <span className="text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-md uppercase tracking-wider whitespace-nowrap">{task.cropType}</span>
+-            <span className="text-[10px] font-bold bg-stone-100 dark:bg-stone-700 text-stone-600 dark:text-stone-300 px-2 py-0.5 rounded-md uppercase tracking-wider whitespace-nowrap truncate max-w-[120px]">{task.tag}</span>
++      <div className="p-4 flex-1 overflow-y-auto space-y-4">
++        <p className="text-sm text-stone-500 dark:text-stone-400 mb-6 px-1">If you need assistance, please reach out to any of our support members below.</p>
++        
++        {contacts.map((contact, i) => (
++          <div key={i} className="bg-white dark:bg-stone-800 p-4 rounded-2xl border border-stone-100 dark:border-stone-700 shadow-sm">
++            <h3 className="font-bold text-stone-900 dark:text-stone-100 mb-1">{contact.name}</h3>
++            <p className="text-xs text-stone-500 dark:text-stone-400 mb-3">ID: {contact.id}</p>
++            
++            <div className="space-y-2">
++              <div className="flex items-center gap-2 text-sm text-stone-600 dark:text-stone-300">
++                <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-stone-700 flex items-center justify-center text-stone-500">
++                  <span className="text-xs font-bold">@</span>
++                </div>
++                {contact.email}
++              </div>
++              {contact.phone && (
++                <div className="flex items-center gap-2 text-sm text-stone-600 dark:text-stone-300">
++                  <div className="w-8 h-8 rounded-full bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center text-emerald-600">
++                    <span className="text-xs font-bold">WA</span>
++                  </div>
++                  {contact.phone}
++                </div>
++              )}
++            </div>
+           </div>
+-        </div>
+-      </div>
+-      <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors duration-300 ${isDone ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-stone-200 dark:border-stone-600'}`}>
+-        <motion.div
+-          initial={false}
+-          animate={{ scale: isDone ? 1 : 0, opacity: isDone ? 1 : 0 }}
+-          transition={{ duration: 0.2, delay: isDone ? 0.1 : 0 }}
+-        >
+-          <Check className="w-4 h-4" strokeWidth={3} />
+-        </motion.div>
++        ))}
+       </div>
+     </motion.div>
+   );
+ }
+ 
+-function ToolCard({ title, desc, icon, color, onClick }: { title: string, desc: string, icon: React.ReactNode, color: string, onClick?: () => void }) {
+-  return (
+-    <div onClick={onClick} className={`p-3 rounded-[1.5rem] border ${color} shadow-sm flex flex-col hover:-translate-y-1 transition-transform cursor-pointer`}>
+-      <div className="w-12 h-12 bg-white dark:bg-stone-800 rounded-2xl flex items-center justify-center mb-4 shadow-sm border border-stone-100 dark:border-stone-700/50">
+-        {icon}
+-      </div>
+-      <h3 className="font-bold text-stone-900 dark:text-stone-100 leading-tight mb-1">{title}</h3>
+-      <p className="text-xs text-stone-600 dark:text-stone-400 font-medium leading-relaxed">{desc}</p>
+-    </div>
+-  );
+-}
+-
+-function ProfileListItem({ icon, label, isDestructive = false, onClick }: { icon: React.ReactNode, label: string, isDestructive?: boolean, onClick?: () => void }) {
+-  return (
+-    <button onClick={onClick} className="w-full p-4 rounded-2xl flex items-center justify-between hover:bg-stone-50 dark:hover:bg-stone-700/50 transition-colors">
+-      <div className="flex items-center gap-4">
+-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isDestructive ? 'bg-red-50 dark:bg-red-900/20' : 'bg-stone-100 dark:bg-stone-700'}`}>
+-          {icon}
+-        </div>
+-        <span className={`font-bold text-sm ${isDestructive ? 'text-red-500 dark:text-red-400' : 'text-stone-900 dark:text-stone-100'}`}>{label}</span>
+-      </div>
+-      <ChevronRight className="w-5 h-5 text-stone-300 dark:text-stone-600" />
+-    </button>
+-  );
+-}
+-
+-function FabMenuItem({ icon, label, onClick }: { icon: React.ReactNode, label: string, onClick: () => void }) {
+-  return (
+-    <button onClick={onClick} className="flex items-center gap-3 justify-end group">
+-      <span className="bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 text-xs font-bold py-1.5 px-3 rounded-lg shadow-sm border border-stone-100 dark:border-stone-700 opacity-0 group-hover:opacity-100 transition-opacity">
+-        {label}
+-      </span>
+-      <div className="w-12 h-12 bg-white dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-full flex items-center justify-center shadow-lg text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-stone-700 transition-colors">
+-        {icon}
+-      </div>
+-    </button>
+-  );
+-}
+-
+-function CropProgressView({ crops, onBack, onDeleteCrop }: { crops: any[], onBack: () => void, onDeleteCrop: (id: number) => void }) {
+-  return (
+-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="h-full bg-stone-50 dark:bg-stone-950 flex flex-col absolute inset-0 z-30">
+-      <header className="px-5 py-4 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between bg-white/80 dark:bg-stone-900/80 backdrop-blur-md sticky top-0 z-40">
+-        <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-300 transition-colors">
+-          <ArrowLeft className="w-6 h-6" />
+-        </button>
+-        <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100">Crop Progress</h2>
+-        <div className="w-10"></div>
+-      </header>
+-
+-      <div className="p-3 md:p-5 flex-1 overflow-y-auto space-y-8 pb-32">
+-        {crops.map((crop, index) => {
+-          const startDate = new Date(crop.start_date);
+-          const today = new Date();
+-          const diffTime = today.getTime() - startDate.getTime();
+-          const diffDays = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
+-
+-          const totalDays = crop.phases?.reduce((acc: number, p: any) => acc + Number(p.days_count), 0) || 120;
+-          const progressPct = Math.min(100, Math.round((diffDays / totalDays) * 100));
+-
+-          let currentPhaseName = 'Sown';
+-          if (crop.phases && crop.phases.length > 0) {
+-            let accDays = 0;
+-            for (let i = 0; i < crop.phases.length; i++) {
+-              accDays += Number(crop.phases[i].days_count);
+-              if (diffDays <= accDays) {
+-                currentPhaseName = crop.phases[i].name;
+-                break;
+-              }
+-            }
+-          }
+-          const midPhaseName = crop.phases && crop.phases.length >= 3 ? crop.phases[Math.floor(crop.phases.length / 2)].name : 'Growing';
+-          const theme = getCropTheme(crop.color_shade);
+-
+-          return (
+-            <motion.div
+-              key={crop.id}
+-              initial={{ opacity: 0, y: 20 }}
+-              animate={{ opacity: 1, y: 0 }}
+-              transition={{ delay: index * 0.1 }}
+-              className="bg-white dark:bg-stone-900 rounded-[2.5rem] p-4 shadow-sm border border-stone-100 dark:border-stone-800 transition-colors relative overflow-hidden group max-w-4xl mx-auto w-full"
+-            >
+-              <div className={`absolute -right-20 -top-20 w-64 h-64 bg-gradient-to-br ${theme.bgGlow} rounded-full blur-3xl opacity-60 dark:opacity-20 transition-colors duration-500`}></div>
+-
+-              <div className="flex flex-col md:flex-row gap-5 relative z-10">
+-                <div className="flex-1">
+                   <div className="flex items-start justify-between mb-6">
+                     <div className="flex items-center gap-4">
+-                      <div className={`w-16 h-16 rounded-[1.5rem] flex items-center justify-center text-lg border shadow-sm ${theme.bgPill} ${theme.borderIcon}`}>
++                      <div className={`w-16 h-16 rounded-[1.5rem] text-[45px] flex items-center justify-center text-lg border shadow-sm ${theme.bgPill} ${theme.borderIcon}`}>
+                         {crop.emoji || '≡ƒî╛'}
+                       </div>
+                       <div>
+@@ -2564,8 +2284,9 @@ function CropProgressView({ crops, onBack, onDeleteCrop }: { crops: any[], onBac
+                         Day {diffDays} <span className="text-stone-400 text-base font-medium">/ {totalDays}</span>
+                       </span>
+                     </div>
+-                    <div className={`px-4 py-2 rounded-xl text-xs font-bold ${theme.bgPill} ${theme.textPill}`}>
+-                      Good Health
++                    <div className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 ${crop.healthStatus === 'Good health' || !crop.healthStatus ? `${theme.bgPill} ${theme.textPill}` : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'}`}>
++                      {crop.healthStatus && crop.healthStatus !== 'Good health' ? <Info className="w-4 h-4" /> : null}
++                      {crop.healthStatus && crop.healthStatus !== 'Good health' ? crop.healthStatus : 'Good Health'}
+                     </div>
+                   </div>
+ 
+@@ -2824,3 +2545,167 @@ function PricePredictionView({ onBack, crops }: { onBack: () => void, crops: any
+     </motion.div>
+   );
+ }
++
++function DiseaseDetectionView({ mode, crops, onBack, onSaveHealth }: { mode: 'select_source' | 'camera_direct', crops: any[], onBack: () => void, onSaveHealth: (cropId: number, status: string) => void }) {
++  const [selectedCrop, setSelectedCrop] = useState<number | null>(null);
++  const [isLoading, setIsLoading] = useState(false);
++  const [result, setResult] = useState<{ isHealthy: boolean, diseaseName?: string, imageBase64?: string } | null>(null);
++  const [isSolving, setIsSolving] = useState(false);
++  const [solution, setSolution] = useState<string | null>(null);
++
++  const handleScan = async (source: CameraSource) => {
++    if (!selectedCrop) return;
++    try {
++      const image = await Camera.getPhoto({
++        quality: 90,
++        allowEditing: false,
++        resultType: CameraResultType.Base64,
++        source: source
++      });
++
++      if (image.base64String) {
++        setIsLoading(true);
++        const crop = crops.find(c => c.id === selectedCrop);
++        
++        const response = await fetchApi('/disease-detection', {
++          method: 'POST',
++          requireAuth: true,
++          body: JSON.stringify({
++            image: `data:image/jpeg;base64,${image.base64String}`,
++            cropType: crop?.type || 'unknown'
++          })
++        });
++
++        if (response) {
++          const data = response;
++          setResult({
++            isHealthy: data.isHealthy,
++            diseaseName: data.healthStatus === 'Good health' ? undefined : data.healthStatus,
++            imageBase64: `data:image/jpeg;base64,${image.base64String}`
++          });
++          onSaveHealth(selectedCrop, data.healthStatus);
++        } else {
++          alert("Failed to analyze image.");
++        }
++      }
++    } catch (error) {
++      console.error("Camera error:", error);
++    } finally {
++      setIsLoading(false);
++    }
++  };
++
++  const handleFindSolution = async () => {
++    if (!result?.diseaseName || !selectedCrop) return;
++    setIsSolving(true);
++    try {
++      const crop = crops.find(c => c.id === selectedCrop);
++      const res = await fetchApi('/ai/disease-solution', {
++        method: 'POST',
++        requireAuth: true,
++        body: JSON.stringify({
++          diseaseName: result.diseaseName,
++          cropType: crop?.type || 'unknown'
++        })
++      });
++      if (res && res.solution) {
++        setSolution(res.solution);
++      }
++    } catch (error) {
++      console.error(error);
++      alert("Failed to find solution.");
++    } finally {
++      setIsSolving(false);
++    }
++  };
++
++  useEffect(() => {
++    if (selectedCrop && mode === 'camera_direct' && !isLoading && !result) {
++      handleScan(CameraSource.Camera);
++    }
++  }, [selectedCrop, mode, isLoading, result]);
++
++  return (
++    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="h-full bg-stone-50 dark:bg-stone-950 flex flex-col absolute inset-0 z-30">
++      <header className="px-5 py-4 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between bg-white/80 dark:bg-stone-900/80 backdrop-blur-md sticky top-0 z-40">
++        <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-300 transition-colors">
++          <ArrowLeft className="w-6 h-6" />
++        </button>
++        <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100">Disease Detection</h2>
++        <div className="w-10"></div>
++      </header>
++
++      <div className="p-5 flex-1 flex flex-col items-center justify-center overflow-y-auto">
++        {isLoading ? (
++          <div className="flex flex-col items-center gap-4">
++            <Loader2 className="w-12 h-12 text-emerald-500 animate-spin" />
++            <p className="text-stone-600 dark:text-stone-400 font-medium">Analyzing plant health...</p>
++          </div>
++        ) : result ? (
++          <div className="flex flex-col items-center gap-6 w-full max-w-sm pb-10">
++            {result.imageBase64 && (
++              <div className="w-full h-48 rounded-2xl overflow-hidden shadow-md">
++                <img src={result.imageBase64} alt="Crop scan" className="w-full h-full object-cover" />
++              </div>
++            )}
++            
++            <div className={`w-full p-6 rounded-2xl flex flex-col items-center ${result.isHealthy ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300' : 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300'}`}>
++              <div className="flex flex-col items-center text-center">
++                <h3 className="text-2xl font-black">{result.isHealthy ? 'Healthy Crop' : 'Disease Detected'}</h3>
++                <p className="mt-2 font-medium opacity-90">{result.isHealthy ? 'Your crop looks to be in great condition. Keep up the good work!' : `Likely diagnosis: ${result.diseaseName}`}</p>
++              </div>
++            </div>
++
++            {!result.isHealthy && result.diseaseName && !solution && (
++              <button onClick={handleFindSolution} disabled={isSolving} className="w-full bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-bold py-4 rounded-xl shadow-lg flex justify-center items-center gap-2 transition">
++                {isSolving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
++                {isSolving ? 'Generating Treatment Plan...' : 'Find Solution with AI'}
++              </button>
++            )}
++
++            {solution && (
++              <div className="w-full bg-white dark:bg-stone-900 rounded-2xl p-5 shadow-sm border border-stone-200 dark:border-stone-800">
++                <h4 className="font-bold text-stone-900 dark:text-stone-100 mb-3 flex items-center gap-2">
++                  <Sparkles className="w-5 h-5 text-cyan-500" /> Treatment Plan
++                </h4>
++                <p className="text-sm text-stone-600 dark:text-stone-400 whitespace-pre-wrap leading-relaxed">{solution}</p>
++              </div>
++            )}
++
++            <button onClick={onBack} className="mt-2 bg-stone-900 dark:bg-white text-white dark:text-stone-900 font-bold py-3.5 px-8 rounded-xl w-full">Back to AI Tools</button>
++          </div>
++        ) : !selectedCrop ? (
++          <div className="w-full max-w-sm flex flex-col gap-4">
++            <h3 className="text-xl font-bold text-stone-900 dark:text-stone-100 text-center mb-4">Select a Crop</h3>
++            {crops.length === 0 ? (
++              <p className="text-stone-500 text-center">No crops added yet.</p>
++            ) : (
++              crops.map(c => (
++                <button key={c.id} onClick={() => setSelectedCrop(c.id)} className="w-full p-4 bg-white dark:bg-stone-900 border border-stone-100 dark:border-stone-800 rounded-2xl flex items-center gap-4 shadow-sm text-left hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors">
++                  <div className="text-2xl">{c.emoji || '≡ƒî▒'}</div>
++                  <div className="flex-1">
++                    <div className="font-bold text-stone-900 dark:text-stone-100">{c.type}</div>
++                    <div className="text-xs text-stone-500">{c.name}</div>
++                  </div>
++                  <ChevronRight className="w-5 h-5 text-stone-400" />
++                </button>
++              ))
++            )}
++          </div>
++        ) : (
++          mode === 'select_source' && (
++            <div className="w-full max-w-sm flex flex-col gap-4">
++              <h3 className="text-xl font-bold text-stone-900 dark:text-stone-100 text-center mb-4">Upload Photo</h3>
++              <button onClick={() => handleScan(CameraSource.Camera)} className="w-full p-5 bg-emerald-500 hover:bg-emerald-400 text-white rounded-2xl flex flex-col items-center gap-3 font-bold shadow-lg shadow-emerald-500/20 transition-all">
++                <CameraIcon className="w-8 h-8" /> Take Photo
++              </button>
++              <button onClick={() => handleScan(CameraSource.Photos)} className="w-full p-5 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 text-stone-700 dark:text-stone-300 rounded-2xl flex flex-col items-center gap-3 font-bold hover:bg-stone-50 dark:hover:bg-stone-800 transition-all">
++                <ImageIcon className="w-8 h-8" /> Choose from Gallery
++              </button>
++            </div>
++          )
++        )}
++      </div>
++    </motion.div>
++  );
++}

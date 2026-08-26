@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Log;
 
 class AiController extends Controller
 {
-    private function callGemini($prompt, $schema, $model = 'gemini-1.5-flash')
+    private function callGemini($prompt, $schema, $model = 'gemini-3.5-flash')
     {
         $apiKey = env('GEMINI_API_KEY');
         if (!$apiKey) {
@@ -104,9 +104,9 @@ class AiController extends Controller
             "1. \"response\": Reply to the user's latest message naturally and helpfully, using the background context and the rolling summary to maintain continuity.\n" .
             "2. \"summary\": Write a new, concise rolling summary that combines the previous summary with the essence of this latest interaction. Ensure any ongoing problems, questions, or established context are preserved in this summary.";
 
-        // Use gemini-1.5-flash since 3.5 doesn't exist yet on google API
+        // Use gemini-3.5-flash since 3.5 doesn't exist yet on google API
         try {
-            $result = $this->callGemini($prompt, $schema, 'gemini-1.5-flash');
+            $result = $this->callGemini($prompt, $schema, 'gemini-3.5-flash');
             if ($result) {
                 return response()->json($result);
             }
@@ -159,7 +159,7 @@ class AiController extends Controller
             "Focus the questions on visual symptoms (e.g., leaf color, spots, wilting) and environmental context (e.g., soil moisture, recent growth speed).\n" .
             "Do NOT ask open-ended questions. Provide exactly 3 to 4 distinct options for each question.";
 
-        $result = $this->callGemini($prompt, $schema, 'gemini-1.5-flash');
+        $result = $this->callGemini($prompt, $schema, 'gemini-3.5-flash');
 
         if ($result) {
             return response()->json($result);
@@ -222,7 +222,7 @@ class AiController extends Controller
             "4. Provide a brief guideline on application.\n" .
             "5. Provide the expected outcome.";
 
-        $result = $this->callGemini($prompt, $schema, 'gemini-1.5-flash');
+        $result = $this->callGemini($prompt, $schema, 'gemini-3.5-flash');
 
         if ($result) {
             return response()->json($result);
@@ -289,7 +289,7 @@ class AiController extends Controller
             "If land area is provided, scale the tasks appropriately (e.g., mention the estimated amount of seeds, fertilizers, or manpower needed for the given acres in the task descriptions).\n" .
             "Provide a suitable professional base color name for a light UI theme for this crop (e.g., \"emerald\", \"amber\", \"teal\", \"orange\", \"yellow\").";
 
-        $result = $this->callGemini($prompt, $schema, 'gemini-1.5-flash');
+        $result = $this->callGemini($prompt, $schema, 'gemini-3.5-flash');
 
         if ($result) {
             return response()->json($result);
@@ -372,7 +372,7 @@ class AiController extends Controller
                 "Also provide a short summary analyzing the monthly trend. Do not include news.\n";
         }
 
-        $result = $this->callGemini($prompt, $schema, 'gemini-1.5-flash');
+        $result = $this->callGemini($prompt, $schema, 'gemini-3.5-flash');
 
         if ($result) {
             return response()->json($result);
@@ -420,7 +420,7 @@ class AiController extends Controller
 
         $prompt = "You are an expert AI agronomist providing a quick daily briefing to a farmer on their dashboard.\n\n" .
             "Current Weather Context:\n" .
-            "- Temperature: {$temp}°C\n" .
+            "- Temperature: {$temp} degrees C\n" .
             "- Condition: {$condition}\n" .
             "- Rain Chance (Today): {$rainChanceToday}%\n" .
             "- Rain Chance (Next 3 Hours): {$rainChance3Hr}%\n\n" .
@@ -432,12 +432,50 @@ class AiController extends Controller
             "For example, if rain is coming and they have tomatoes, tell them to avoid watering or applying fertilizer today. If it's hot and dry, remind them about irrigation.\n" .
             "Keep it encouraging, highly relevant, and professional. Do NOT use markdown.";
 
-        $result = $this->callGemini($prompt, $schema, 'gemini-1.5-flash');
+        $result = $this->callGemini($prompt, $schema, 'gemini-3.5-flash');
+
+        if ($result) {
+            Log::info('Weather Summary Gemini Response:', ['result' => $result]);
+            return response()->json($result);
+        }
+
+        return response()->json(['error' => 'Failed to generate content'], 500);
+    }
+
+    public function diseaseSolution(Request $request)
+    {
+        $request->validate([
+            'diseaseName' => 'required|string',
+            'cropType' => 'required|string',
+        ]);
+
+        $schema = [
+            'type' => 'OBJECT',
+            'properties' => [
+                'solution' => [
+                    'type' => 'STRING',
+                    'description' => 'A clear, step-by-step treatment plan to cure the disease.'
+                ]
+            ],
+            'required' => ['solution']
+        ];
+
+        $diseaseName = $request->input('diseaseName');
+        $cropType = $request->input('cropType');
+
+        $prompt = "You are an expert plant pathologist and agronomist.\n" .
+            "A farmer has detected the following disease on their crop:\n" .
+            "- Crop name: {$cropType}\n" .
+            "- Detected Disease: {$diseaseName}\n\n" .
+            "Please provide a clear, actionable, and step-by-step treatment plan to cure this disease and save the crop. " .
+            "Include both immediate organic remedies and chemical treatments if applicable.";
+
+        $result = $this->callGemini($prompt, $schema);
 
         if ($result) {
             return response()->json($result);
         }
 
-        return response()->json(['error' => 'Failed to generate content'], 500);
+        return response()->json(['error' => 'Failed to generate solution'], 500);
     }
 }

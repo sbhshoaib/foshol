@@ -14,7 +14,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
-        className="w-full max-w-md z-10 relative px-6 sm:px-8 bg-white/70 backdrop-blur-xl p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/50"
+        className="w-full max-w-md z-10 relative px-6 sm:px-8 py-8"
       >
         <div className="mb-12 text-center">
           <div className="w-16 h-16 bg-emerald-600 rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-lg shadow-emerald-500/30">

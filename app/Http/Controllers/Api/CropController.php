@@ -94,6 +94,7 @@ class CropController extends Controller
                             'date' => $taskData['date'] ?? null,
                             'type' => $taskData['type'] ?? 'general',
                             'is_schedule' => true,
+                            'is_completed' => false,
                         ]);
                     }
                 }

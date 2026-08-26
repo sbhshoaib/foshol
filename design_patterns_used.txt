@@ -1,0 +1,53 @@
+Design Patterns Used in the Foshol Project
+==========================================
+
+This document outlines where specific software design patterns are utilized within both the Laravel (Backend) and Next.js/React (Frontend) parts of the Foshol project.
+
+1. Singleton Pattern
+--------------------
+* Laravel: The entire Laravel Service Container (IoC container) is a Singleton. It ensures that only one instance of core services (like the database connection or the HTTP request object) exists throughout the application lifecycle.
+* React: ES6 Modules act as singletons. For example, any shared configuration or utility instantiated in `frontend/lib/api.ts` is evaluated only once and shared across all components that import it.
+
+2. Simple Factory
+-----------------
+* Laravel: Global helper functions like `response()->json(...)` act as simple factories to quickly instantiate and return a `JsonResponse` object without calling `new JsonResponse(...)`.
+* React: Components that render different UI elements based on simple conditionals (e.g., returning a specific crop icon or theme based on the crop type string) act as simple UI factories.
+
+3. Factory Method Pattern
+-------------------------
+* Laravel: Used heavily in the `database/factories` directory. Each model factory (e.g., `UserFactory`) extends a base Factory class and implements a `definition()` method. This method tells the factory exactly how to instantiate that specific model.
+
+4. Abstract Factory Pattern
+---------------------------
+* Laravel: The database connection manager acts as an abstract factory. It provides a common interface to create query builders and connections for different database types (MySQL, PostgreSQL, SQLite) without specifying their concrete classes in the application code.
+
+5. Builder Pattern
+------------------
+* Laravel (Database): The Eloquent Query Builder is a textbook example. You chain methods to build a complex query step-by-step before finally executing it.
+  Example from routes/api.php: `Notification::where('user_id', ...)->orderBy('created_at', 'desc')->limit(20)->get();`
+* Laravel (HTTP): The Laravel HTTP Client uses the builder pattern to construct requests. 
+  Example from DiseaseDetectionController: `Http::withHeaders(...)->post(...);`
+
+6. Adapter Pattern
+------------------
+* Laravel: The `DiseaseDetectionController` acts as an adapter. It takes the generic API request from the mobile frontend and adapts it into the specific JSON format and header structure required by the external 3rd-party Kindwise (Plant.id) API. It then adapts the complex 3rd-party response back into a clean, simple JSON format for the React frontend.
+
+7. Decorator Pattern
+--------------------
+* Laravel: Middleware (like `auth:sanctum` used in `routes/api.php`) acts as a decorator. It wraps around an HTTP request, adding extra behavior (checking for a valid token) before passing it along to the core controller logic, without modifying the controller itself.
+* React: Higher-Order Components (HOCs) or wrappers (like the `<FosholApp>` component wrapping and providing theme/state context to all sub-views) function as decorators for child components.
+
+8. Facade Pattern
+-----------------
+* Laravel: Facades are heavily used. `Route::`, `Http::`, and `Artisan::` are Facades. They provide a simple, static interface to complex, underlying service container classes.
+* React: The `fetchApi` function in `frontend/lib/api.ts` acts as a facade. It hides the complexity of setting up headers, injecting the Bearer token from localStorage, and handling standard HTTP errors behind a single, simple function call for the rest of the application.
+
+9. Observer Pattern
+-------------------
+* React: The `useEffect` hook in React (used extensively in `page.tsx`) is a modern implementation of the Observer pattern. The hook "observes" specific state variables in its dependency array and executes a side-effect function whenever those variables change.
+* Laravel: Model events (like `created`, `updated`, `deleted`). Though not explicitly defined in an `Observers` folder in this project, the underlying framework uses this pattern to allow listening to Eloquent lifecycle events.
+
+10. Strategy Pattern
+--------------------
+* Laravel: The authentication system (Sanctum) uses the strategy pattern. The application can swap out the "strategy" for authenticating a user (e.g., Token-based API auth vs Session-based web auth) without changing the core business logic.
+* React: Passing callback functions as props (e.g., passing `onDeleteCrop` or `onBack` to the `CropProgressView` component). The parent component defines the "strategy" (what happens when a crop is deleted), and the child component simply executes that strategy without needing to know the implementation details.

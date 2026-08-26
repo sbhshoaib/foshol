@@ -11,11 +11,9 @@ class AiController extends Controller
 {
     private function callGemini($prompt, $schema, $model = 'gemini-3.5-flash')
     {
-        // $apiKey = env('GEMINI_API_KEY');
-
-
-        $apiKey = env('GEMINI_API_KEY');
-
+        // Safely load the keys from the .env file to prevent GitHub blocks
+        $keys = explode(',', env('GEMINI_API_KEYS', ''));
+        $apiKey = collect($keys)->map(fn($k) => trim($k))->filter()->random();
 
         if (!$apiKey) {
             return response()->json(['error' => 'GEMINI_API_KEY is not configured.'], 500);

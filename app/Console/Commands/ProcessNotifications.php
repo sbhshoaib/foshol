@@ -52,8 +52,8 @@ class ProcessNotifications extends Command
         $hasPendingTasks = \App\Models\Task::whereHas('crop', function ($query) use ($user) {
                 $query->where('user_id', $user->id);
             })
-            ->whereDate('time', '<=', $todayStr)
-            ->where('done', false)
+            ->whereDate('date', '<=', $todayStr)
+            ->where('is_completed', false)
             ->exists();
 
         if ($hasPendingTasks) {

@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost/foshol/public/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://syntaxcube.com/foshol/public/api';
 
 interface FetchOptions extends RequestInit {
   requireAuth?: boolean;

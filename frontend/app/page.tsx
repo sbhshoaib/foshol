@@ -27,7 +27,7 @@ import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Camera as CameraIcon, HeartPulse, Upload, Loader2, Info, Sparkles } from 'lucide-react';
 
 // Custom Tab Types
-type ViewType = 'dashboard' | 'ai' | 'chatbot' | 'fertilizer_ai' | 'calendar' | 'profile' | 'edit_profile' | 'add_crop' | 'add_task' | 'crop_progress' | 'price_prediction' | 'disease_detection';
+type ViewType = 'dashboard' | 'ai' | 'chatbot' | 'fertilizer_ai' | 'calendar' | 'profile' | 'edit_profile' | 'add_crop' | 'add_task' | 'crop_progress' | 'price_prediction' | 'disease_detection' | 'notification_preferences' | 'help_support';
 
 const cropThemes: any = {
   slate: { bgGlow: 'from-slate-50 to-white dark:from-slate-900/20 dark:to-stone-900', textAccent: 'text-slate-600 dark:text-slate-400', bgPill: 'bg-slate-100 dark:bg-slate-900/40', textPill: 'text-slate-800 dark:text-slate-300', bgProgress: 'bg-slate-500 dark:bg-slate-400', borderIcon: 'border-slate-100 dark:border-slate-800' },

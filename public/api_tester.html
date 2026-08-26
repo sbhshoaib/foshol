@@ -23,9 +23,21 @@
         <p class="text-gray-600 mb-8">Run these tests to verify the backend API endpoints. Note: Ensure your Laravel server is running and accessible (e.g. via XAMPP at /foshol/public or php artisan serve).</p>
         
         <div class="mb-6">
+            <label class="block text-sm font-bold mb-2">Environment</label>
+            <div class="flex gap-4 mb-4">
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="envToggle" value="local" checked onchange="document.getElementById('apiUrl').value='/foshol/public/api'" class="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300">
+                    <span class="font-medium">Local Server</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="envToggle" value="live" onchange="document.getElementById('apiUrl').value='https://syntaxcube.com/foshol/public/api'" class="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300">
+                    <span class="font-medium">Live Server (SyntaxCube)</span>
+                </label>
+            </div>
+            
             <label class="block text-sm font-bold mb-2">API Base URL</label>
             <input type="text" id="apiUrl" value="/foshol/public/api" class="w-full md:w-1/2 p-2 border rounded shadow-sm focus:ring-blue-500 focus:border-blue-500">
-            <p class="text-xs text-gray-500 mt-1">Change this to http://localhost:8000/api if using artisan serve.</p>
+            <p class="text-xs text-gray-500 mt-1">This will automatically update based on your environment selection above.</p>
         </div>
 
         <div class="flex gap-4 mb-8">

@@ -11,10 +11,18 @@ class AiController extends Controller
 {
     private function callGemini($prompt, $schema, $model = 'gemini-3.5-flash')
     {
+        // $apiKey = env('GEMINI_API_KEY');
+
+
         $apiKey = env('GEMINI_API_KEY');
+
+
         if (!$apiKey) {
             return response()->json(['error' => 'GEMINI_API_KEY is not configured.'], 500);
         }
+
+
+
 
         // The user was using 3.5/3.6, but the actual official REST API only supports existing models.
         // We will fallback to whatever the user passed, or map to 1.5 if it fails.

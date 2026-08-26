@@ -89,3 +89,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/lands/{id}', [LandController::class, 'update']);
     Route::delete('/lands/{id}', [LandController::class, 'destroy']);
 });
+
+// Public route to trigger notification processing via browser or cron
+Route::get('/trigger-notifications', function () {
+    \Illuminate\Support\Facades\Artisan::call('app:process-notifications');
+    return response()->json([
+        'message' => 'Notifications processed successfully',
+        'output' => \Illuminate\Support\Facades\Artisan::output()
+    ]);
+});

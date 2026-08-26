@@ -17,6 +17,11 @@ class Task extends Model
         'is_schedule',
     ];
 
+    protected $casts = [
+        'is_completed' => 'boolean',
+        'is_schedule' => 'boolean',
+    ];
+
     public function user()
     {
         return $this->belongsTo(User::class);

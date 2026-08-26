@@ -123,7 +123,7 @@ export default function FosholApp() {
             time: t.date,
             tag: c.name,
             cropType: c.type,
-            done: t.is_completed,
+            done: t.is_completed === true || t.is_completed === 1 || t.is_completed === "1",
             type: t.type
           }));
           allTasks = [...allTasks, ...cropTasks];
@@ -199,6 +199,7 @@ export default function FosholApp() {
 
     const initStatusBar = async () => {
       try {
+        await StatusBar.show();
         await StatusBar.setOverlaysWebView({ overlay: false });
         await StatusBar.setStyle({ style: Style.Dark });
         await StatusBar.setBackgroundColor({ color: '#047857' });
@@ -1953,6 +1954,7 @@ function NotificationPreferencesView({ user, onBack, onSave }: { user: any, onBa
   useEffect(() => {
     const configureStatusBar = async () => {
       try {
+        await StatusBar.show();
         const isDark = document.documentElement.classList.contains('dark');
         await StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light });
         await StatusBar.setBackgroundColor({ color: isDark ? '#1c1917' : '#ffffff' });

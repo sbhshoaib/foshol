@@ -301,7 +301,7 @@ export default function FosholApp() {
       <div className="w-full bg-stone-50 dark:bg-stone-900 flex flex-col min-h-screen relative transition-colors duration-300">
 
         {/* App Header */}
-        <header className="sticky top-0 w-full px-4 py-3 bg-emerald-700 dark:bg-emerald-900 text-white flex justify-between items-center z-50 shadow-md shrink-0">
+        <header className="sticky top-0 w-full px-4 pt-[env(safe-area-inset-top,2rem)] pb-3 bg-emerald-700 dark:bg-emerald-900 text-white flex justify-between items-center z-50 shadow-md shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
               <Leaf className="w-6 h-6 text-white" />

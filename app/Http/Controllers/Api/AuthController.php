@@ -10,9 +10,51 @@ use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Support\Str;
+use Laravel\Socialite\Facades\Socialite;
+use Illuminate\Support\Facades\Log;
 
 class AuthController extends Controller
 {
+    public function redirectToGoogle()
+    {
+        return Socialite::driver('google')->stateless()->redirect();
+    }
+
+    public function handleGoogleCallback()
+    {
+        try {
+            $googleUser = Socialite::driver('google')->stateless()->user();
+            
+            $user = User::where('email', $googleUser->getEmail())->first();
+            
+            if (!$user) {
+                $user = User::create([
+                    'name' => $googleUser->getName() ?? 'Google User',
+                    'email' => $googleUser->getEmail(),
+                    'google_id' => $googleUser->getId(),
+                    'avatar' => $googleUser->getAvatar(),
+                    'password' => null, // Password is null for Google accounts
+                ]);
+            } else {
+                // Update existing user with google id
+                $user->update([
+                    'google_id' => $googleUser->getId(),
+                    'avatar' => $googleUser->getAvatar(),
+                ]);
+            }
+
+            $token = $user->createToken('auth_token')->plainTextToken;
+            
+            // Redirect back to frontend with the token
+            $frontendUrl = env('FRONTEND_URL', 'http://localhost:3000');
+            return redirect()->to($frontendUrl . '/login?token=' . $token);
+            
+        } catch (\Exception $e) {
+            Log::error('Google auth failed: ' . $e->getMessage());
+            $frontendUrl = env('FRONTEND_URL', 'http://localhost:3000');
+            return redirect()->to($frontendUrl . '/login?error=auth_failed');
+        }
+    }
     public function register(Request $request)
     {
         $request->validate([

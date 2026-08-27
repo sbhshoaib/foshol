@@ -1,4 +1,4 @@
-# Comprehensive Guide to Design Patterns in the Foshol Project
+p# Comprehensive Guide to Design Patterns in the Foshol Project
 
 This document provides a detailed, structured breakdown of how the 10 requested software design patterns are utilized across both the **Laravel (Backend)** and **Next.js/React (Frontend)** codebases of the Foshol project.
 

@@ -38,10 +38,15 @@ export default function LoginPage() {
           if (url.includes('?')) {
             const params = new URLSearchParams(url.split('?')[1]);
             const deepToken = params.get('token');
+            const urlError = params.get('error');
+
             if (deepToken) {
               localStorage.setItem('auth_token', deepToken);
               Browser.close().catch(() => {});
               router.push('/');
+            } else if (urlError) {
+              Browser.close().catch(() => {});
+              setError('Google authentication failed. Please make sure the live server database is migrated.');
             }
           }
         };

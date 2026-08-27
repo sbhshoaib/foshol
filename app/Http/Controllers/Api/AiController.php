@@ -45,7 +45,7 @@ class AiController extends Controller
 
         $response = Http::withHeaders([
             'x-goog-api-key' => $apiKey
-        ])->post($url, $payload);
+        ])->timeout(60)->post($url, $payload);
 
         if ($response->successful()) {
             $data = $response->json();

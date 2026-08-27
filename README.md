@@ -1,58 +1,55 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Foshol - Smart Agriculture Platform 🌱
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Foshol is an AI-Powered Smart Agriculture Platform designed specifically for farmers in Bangladesh. It helps farmers manage their lands, track crop growth phases, predict crop prices, detect plant diseases, and get AI-driven recommendations for fertilizers and farming tasks.
 
-## About Laravel
+## 🚀 Features
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- **Crop & Land Management**: Keep track of your fields, currently planted crops, and their growth phases.
+- **AI Disease Detection**: Take a picture of a diseased plant, and the AI will analyze it to provide a diagnosis and treatment plan.
+- **Smart Fertilizer Recommendation**: Get AI-generated fertilizer advice based on your specific crop and land conditions.
+- **Crop Price Prediction**: AI-powered predictions for future crop market prices to help you plan your harvest.
+- **Agricultural Chatbot**: A contextual AI assistant that knows about your currently planted crops and tasks, ready to answer any farming questions.
+- **Weather & Task Notifications**: Push notifications to remind you of daily tasks and warn you of upcoming rain or adverse weather conditions.
+- **Dark Mode Support**: Beautiful, dual-tone UI with full support for Light and Dark modes.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## 🛠️ Technology Stack
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- **Backend**: Laravel (PHP), MySQL/SQLite, Artisan Console Commands
+- **Frontend**: Next.js (React), Tailwind CSS, Framer Motion (for animations)
+- **Mobile Native Wrapper**: Capacitor (Android App export with native Status Bar and FCM Push Notifications)
+- **AI Integration**: Google Gemini API for intelligent analysis and conversational features.
 
-## Learning Laravel
+## 📦 Project Structure
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+- `/app`, `/routes`, `/database`: Laravel backend serving the REST API.
+- `/frontend`: Next.js web application.
+- `/android`: Capacitor-generated native Android Studio project.
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## 💻 Setup Instructions
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+### Backend (Laravel)
+1. Navigate to the project root.
+2. Run `composer install` to install PHP dependencies.
+3. Copy `.env.example` to `.env` and configure your database and `GEMINI_API_KEYS`.
+4. Run `php artisan key:generate`.
+5. Run `php artisan migrate` to set up the database.
+6. Serve the API using `php artisan serve` or your preferred web server (e.g., XAMPP/Apache).
 
-## Agentic Development
+### Frontend (Next.js)
+1. Navigate to the `/frontend` directory: `cd frontend`.
+2. Run `npm install` to install Node.js dependencies.
+3. Configure the `.env.local` file with your API URL (`NEXT_PUBLIC_API_URL`) and Firebase credentials.
+4. Run `npm run dev` for local web development.
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+### Android App (Capacitor)
+To build and sync the app for Android:
+1. Inside the `/frontend` folder, run `npm run build`.
+2. Run `npx cap sync` to copy the static web assets to the Android folder.
+3. Open the `/android` folder in Android Studio to build and deploy the APK.
 
-```bash
-composer require laravel/boost --dev
+## 📜 Design Patterns
 
-php artisan boost:install
-```
+This project heavily utilizes modern software design patterns on both the frontend and backend, including Singleton, Factory, Builder, Observer, Strategy, and Dependency Injection. For a detailed breakdown of how these patterns are implemented, please refer to the `design_patterns_detailed.md` and `design_patterns_used.txt` files included in the repository.
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
-
-## Contributing
-
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+---
+*Built to empower the future of farming.*

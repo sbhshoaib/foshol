@@ -6,6 +6,9 @@ import Link from 'next/link';
 import { fetchApi } from '@/lib/api';
 import { motion } from 'motion/react';
 import { Loader2, ArrowRight } from 'lucide-react';
+import { App } from '@capacitor/app';
+import { Browser } from '@capacitor/browser';
+import { Capacitor } from '@capacitor/core';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -28,6 +31,18 @@ export default function LoginPage() {
         setError('Google authentication failed. Please try again.');
         // Clean URL
         window.history.replaceState({}, document.title, window.location.pathname);
+      }
+
+      if (Capacitor.isNativePlatform()) {
+        App.addListener('appUrlOpen', (event) => {
+          const params = new URLSearchParams(event.url.split('?')[1]);
+          const deepToken = params.get('token');
+          if (deepToken) {
+            localStorage.setItem('auth_token', deepToken);
+            Browser.close();
+            router.push('/');
+          }
+        });
       }
     }
 
@@ -141,9 +156,13 @@ export default function LoginPage() {
       </div>
 
       <button
-        onClick={() => {
+        onClick={async () => {
           const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://syntaxcube.com/foshol/public/api';
-          window.location.href = `${apiUrl}/auth/google`;
+          if (Capacitor.isNativePlatform()) {
+            await Browser.open({ url: `${apiUrl}/auth/google?client=app` });
+          } else {
+            window.location.href = `${apiUrl}/auth/google?client=web`;
+          }
         }}
         disabled={loading}
         className="w-full bg-white border border-stone-200 hover:bg-stone-50 text-stone-700 font-semibold rounded-2xl px-5 py-4 mt-8 transition-colors duration-200 flex items-center justify-center disabled:opacity-70 disabled:cursor-not-allowed shadow-sm"

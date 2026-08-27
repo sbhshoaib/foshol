@@ -15,12 +15,16 @@ use Illuminate\Support\Facades\Log;
 
 class AuthController extends Controller
 {
-    public function redirectToGoogle()
+    public function redirectToGoogle(Request $request)
     {
-        return Socialite::driver('google')->stateless()->redirect();
+        $client = $request->query('client', 'web');
+        return Socialite::driver('google')
+            ->stateless()
+            ->with(['state' => $client])
+            ->redirect();
     }
 
-    public function handleGoogleCallback()
+    public function handleGoogleCallback(Request $request)
     {
         try {
             $googleUser = Socialite::driver('google')->stateless()->user();
@@ -45,12 +49,22 @@ class AuthController extends Controller
 
             $token = $user->createToken('auth_token')->plainTextToken;
             
+            $client = $request->query('state', 'web');
+            
+            if ($client === 'app') {
+                return redirect()->to('foshol://login?token=' . $token);
+            }
+            
             // Redirect back to frontend with the token
             $frontendUrl = env('FRONTEND_URL', 'http://localhost:3000');
             return redirect()->to($frontendUrl . '/login?token=' . $token);
             
         } catch (\Exception $e) {
             Log::error('Google auth failed: ' . $e->getMessage());
+            $client = $request->query('state', 'web');
+            if ($client === 'app') {
+                return redirect()->to('foshol://login?error=auth_failed');
+            }
             $frontendUrl = env('FRONTEND_URL', 'http://localhost:3000');
             return redirect()->to($frontendUrl . '/login?error=auth_failed');
         }

@@ -34,14 +34,28 @@ export default function LoginPage() {
       }
 
       if (Capacitor.isNativePlatform()) {
-        App.addListener('appUrlOpen', (event) => {
-          const params = new URLSearchParams(event.url.split('?')[1]);
-          const deepToken = params.get('token');
-          if (deepToken) {
-            localStorage.setItem('auth_token', deepToken);
-            Browser.close();
-            router.push('/');
+        const handleDeepLink = (url: string) => {
+          if (url.includes('?')) {
+            const params = new URLSearchParams(url.split('?')[1]);
+            const deepToken = params.get('token');
+            if (deepToken) {
+              localStorage.setItem('auth_token', deepToken);
+              Browser.close().catch(() => {});
+              router.push('/');
+            }
           }
+        };
+
+        // Catch app launched from deep link (Cold Start)
+        App.getLaunchUrl().then((launchUrl) => {
+          if (launchUrl && launchUrl.url) {
+            handleDeepLink(launchUrl.url);
+          }
+        });
+
+        // Catch deep link while app is running (Warm Start)
+        App.addListener('appUrlOpen', (event) => {
+          handleDeepLink(event.url);
         });
       }
     }
